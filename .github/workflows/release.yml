@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
 
 env:
-  packageName: "dev.raspichu.inspector-enhancements"
+  packageName: "dev.raspichu.unused-bone-remover"
 
 permissions:
   contents: write
