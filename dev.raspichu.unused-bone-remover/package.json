@@ -1,0 +1,14 @@
+{
+    "name": "dev.raspichu.unused-bone-remover",
+    "displayName": "Pichu Unused Bone Remover",
+    "version": "0.3.3",
+    "unity": "2019.4",
+    "description": "A tool that removes unused bones from your avatar to improve performance.",
+    "author": {
+        "name": "Pichu"
+    },
+    "vpmDependencies": {
+        "com.vrchat.avatars": ">=3.3.0 <3.7.0-a"
+    },
+    "url": "https://github.com/raspichu/VRC-Unused-Bone-Remover"
+}
