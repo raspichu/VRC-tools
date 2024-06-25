@@ -1,7 +1,7 @@
 {
     "name": "dev.raspichu.unused-bone-remover",
     "displayName": "Pichu Unused Bone Remover",
-    "version": "0.3.3",
+    "version": "0.1.2",
     "unity": "2019.4",
     "description": "A tool that removes unused bones from your avatar to improve performance.",
     "author": {
