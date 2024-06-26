@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
 
 env:
-  packageName: "dev.raspichu.unused-bone-remover"
+  packageName: "dev.raspichu.vrc-tools"
 
 permissions:
   contents: write
