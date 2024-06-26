@@ -1,0 +1,25 @@
+{
+    "name": "raspichu.vrc_tools.editor",
+    "rootNamespace": "",
+    "references": [
+        "VRC.SDK3A",
+        "nadena.dev.ndmf",
+        "nadena.dev.modular-avatar.core",
+        "raspichu.vrc_tools.component"
+    ],
+    "includePlatforms": [
+        "Editor"
+    ],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": true,
+    "precompiledReferences": [
+        "VRCSDKBase.dll",
+        "VRCSDK3A.dll",
+        "System.Collections.Immutable.dll"
+    ],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
+}

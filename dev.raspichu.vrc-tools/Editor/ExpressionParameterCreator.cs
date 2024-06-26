@@ -2,39 +2,43 @@ using UnityEngine;
 using UnityEditor;
 using VRC.SDK3.Avatars.ScriptableObjects;
 using nadena.dev.modular_avatar.core;
+using raspichu.vrc_tools.component;
 
-[CustomEditor(typeof(ParameterToMA))]
-public class ExpressionParameterCreator : Editor
+namespace raspichu.vrc_tools.editor
 {
-    public override void OnInspectorGUI()
+    [CustomEditor(typeof(ParameterToMA))]
+    public class ExpressionParameterCreator : Editor
     {
-        ParameterToMA parameterToMA = (ParameterToMA)target;
-
-        EditorGUILayout.LabelField("VRC Expression Parameters", EditorStyles.boldLabel);
-        parameterToMA.expressionParameters = (VRCExpressionParameters)EditorGUILayout.ObjectField(
-            "Expression Parameters", parameterToMA.expressionParameters, typeof(VRCExpressionParameters), true);
-
-
-        // If there's already a ModularAvatarParameters, add a button to "Add Parameters"
-        if (parameterToMA.GetComponent<ModularAvatarParameters>() != null)
+        public override void OnInspectorGUI()
         {
-            if (GUILayout.Button("Clear and create"))
-            {
-                parameterToMA.CreateParameters(false);
-            }
-            if (GUILayout.Button("Add Parameters to existing"))
-            {
-                parameterToMA.CreateParameters(false);
-            }
-        }
-        else
-        {
-            if (GUILayout.Button("Create"))
-            {
-                parameterToMA.CreateParameters(true);
-            }
-        }
+            ParameterToMA parameterToMA = (ParameterToMA)target;
 
-        EditorUtility.SetDirty(target);
+            EditorGUILayout.LabelField("VRC Expression Parameters", EditorStyles.boldLabel);
+            parameterToMA.expressionParameters = (VRCExpressionParameters)EditorGUILayout.ObjectField(
+                "Expression Parameters", parameterToMA.expressionParameters, typeof(VRCExpressionParameters), true);
+
+
+            // If there's already a ModularAvatarParameters, add a button to "Add Parameters"
+            if (parameterToMA.GetComponent<ModularAvatarParameters>() != null)
+            {
+                if (GUILayout.Button("Clear and create"))
+                {
+                    parameterToMA.CreateParameters(false);
+                }
+                if (GUILayout.Button("Add Parameters to existing"))
+                {
+                    parameterToMA.CreateParameters(false);
+                }
+            }
+            else
+            {
+                if (GUILayout.Button("Create"))
+                {
+                    parameterToMA.CreateParameters(true);
+                }
+            }
+
+            EditorUtility.SetDirty(target);
+        }
     }
 }
