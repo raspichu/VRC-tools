@@ -1,13 +1,12 @@
 {
     "name": "raspichu.vrc_tools.component",
+    "rootNamespace": "",
     "references": [
         "VRC.SDK3A",
         "nadena.dev.ndmf",
         "nadena.dev.modular-avatar.core"
     ],
-    "includePlatforms": [
-        "Editor"
-    ],
+    "includePlatforms": [],
     "excludePlatforms": [],
     "allowUnsafeCode": false,
     "overrideReferences": true,

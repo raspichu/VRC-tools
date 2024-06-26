@@ -16,7 +16,9 @@
     "precompiledReferences": [
         "VRCSDKBase.dll",
         "VRCSDK3A.dll",
-        "System.Collections.Immutable.dll"
+        "System.Collections.Immutable.dll",
+        "VRC.Dynamics.dll",
+        "VRC.SDK3.Dynamics.PhysBone.dll"
     ],
     "autoReferenced": true,
     "defineConstraints": [],
