@@ -2,9 +2,7 @@
     "name": "raspichu.vrc_tools.component",
     "rootNamespace": "",
     "references": [
-        "VRC.SDK3A",
-        "nadena.dev.ndmf",
-        "nadena.dev.modular-avatar.core"
+        "VRC.SDK3A"
     ],
     "includePlatforms": [],
     "excludePlatforms": [],
