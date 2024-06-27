@@ -16,6 +16,12 @@
     ],
     "autoReferenced": true,
     "defineConstraints": [],
-    "versionDefines": [],
+    "versionDefines": [
+        {
+            "name": "nadena.dev.modular-avatar",
+            "expression": "1.0",
+            "define": "MA_EXISTS"
+        }
+    ],
     "noEngineReferences": false
 }

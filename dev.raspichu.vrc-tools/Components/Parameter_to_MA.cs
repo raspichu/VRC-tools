@@ -1,3 +1,4 @@
+#if MA_EXISTS
 using UnityEditor;
 using UnityEngine;
 using System.Collections;
@@ -83,3 +84,4 @@ namespace raspichu.vrc_tools.component
     }
 
 }
+#endif

@@ -1,3 +1,4 @@
+#if MA_EXISTS
 using UnityEngine;
 using UnityEditor;
 using VRC.SDK3.Avatars.ScriptableObjects;
@@ -42,3 +43,4 @@ namespace raspichu.vrc_tools.editor
         }
     }
 }
+#endif
