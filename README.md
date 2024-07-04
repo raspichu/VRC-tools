@@ -26,6 +26,18 @@ The Parameters to MA Parameters script transforms a parameter file from VRChat i
 
 **Note:** If an MA parameter script already exists on the object, you have the option to add new parameters to the existing script or clear the list and add the new ones.
 
+### Bulk Upload
+
+The Bulk Upload tool simplifies the process of uploading multiple VRChat avatars in one go.
+
+You need to have the VRChat SDK window open and logged in for it to work.
+
+Avatars that don't have blueprint attached will give an error.
+
+1. Open the window navigating to `Window -> Pichu -> Bulk Upload`
+2. Press `Upload All (X)`
+
+
 ### Installation
 
 1. **Manual Installation:**
