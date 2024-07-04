@@ -124,20 +124,20 @@ namespace raspichu.vrc_tools.editor
         private VRCAvatarDescriptor[] GetAvatarDescriptorList()
         {
             VRCAvatarDescriptor[] avatarsDescriptor = FindObjectsOfType<VRCAvatarDescriptor>();
-            List<VRCAvatarDescriptor> realList = new List<VRCAvatarDescriptor>();
 
-            foreach (var avatar in avatarsDescriptor)
-            {
-                // If avatar is not active in hierarchy, ignore it
-                if (!avatar.gameObject.activeInHierarchy)
-                {
-                    continue;
-                }
-
-                realList.Add(avatar);
-            }
-
-            return realList.ToArray();
+            // Filter the results to only include objects that are active and not have a ignore tag (Is created by the Utils.UnityBuild process)
+            avatarsDescriptor = avatarsDescriptor
+            .Where(descriptor =>
+                descriptor.gameObject.scene.isLoaded &&
+                descriptor.gameObject.activeInHierarchy &&
+                !descriptor.gameObject.name.Contains("(Clone)") &&
+                !descriptor.gameObject.name.Contains("VRCF Test Copy for")
+            )
+            .ToArray()
+            .OrderBy(descriptor => GetHierarchyPath(descriptor.gameObject.transform))
+                .ToArray();
+            // Sort the results by position in the hierarchy, the more close to the top in the hierarchy the more likely it is the root object
+            return avatarsDescriptor;
         }
 
         private void ResetAvatarStatus()
@@ -289,6 +289,25 @@ namespace raspichu.vrc_tools.editor
             r.x -= 2;
             r.width += 6;
             EditorGUI.DrawRect(r, color);
+        }
+
+        public static string GetHierarchyPath(Transform transform)
+        {
+            // Create a list to store the sibling indices at each level of the hierarchy
+            var path = new List<string>();
+            // Traverse up the hierarchy from the current transform to the root
+            while (transform != null)
+            {
+                // Get the sibling index of the current transform, which is its position among its siblings.
+                // Convert it to a string with leading zeros ("D4" format) to ensure correct string comparison
+                // when sorting (e.g., so that "10" is not considered less than "2").
+                path.Insert(0, transform.GetSiblingIndex().ToString("D4"));
+
+                // Move up to the parent of the current transform
+                transform = transform.parent;
+            }
+            // Join the sibling indices with slashes to create a string representation of the hierarchy path
+            return string.Join("/", path);
         }
     }
 }
