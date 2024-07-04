@@ -34,6 +34,8 @@ namespace raspichu.vrc_tools.editor
         private Dictionary<string, string> avatarErrorMessages = new Dictionary<string, string>();
         private Vector2 scrollPosition; // Scroll position for the scroll view
 
+        private bool isBuilderPresent = true;
+
         private bool isAvatarUploading = false;
         private bool isAvatarUploadingAll = false;
         private bool isAvatarUploadingCancelled = false;
@@ -60,19 +62,34 @@ namespace raspichu.vrc_tools.editor
                 fontStyle = FontStyle.Bold
             };
 
+
+
             VRCAvatarDescriptor[] avatarsDescriptor = GetAvatarDescriptorList();
 
             GUILayout.Label("Upload Avatars", titleStyle);
             DrawUILine(Color.gray, 2, 10);
 
-            EditorGUI.BeginDisabledGroup(isAvatarUploading); // Disable group for Upload button
+            if (!IsBuilderPresent())
+            {
+                EditorGUILayout.Space(5); // Add spacing between avatars
+                EditorGUILayout.HelpBox("Please open the VRChat SDK Control Panel.", MessageType.Error, true);
+                EditorGUILayout.Space(5); // Add spacing between avatars
+
+                isBuilderPresent = false;
+            }
+            else
+            {
+                isBuilderPresent = true;
+            }
+
+            EditorGUI.BeginDisabledGroup(isAvatarUploading || !isBuilderPresent); // Disable group for Upload button
             if (GUILayout.Button($"Upload All ({avatarsDescriptor.Length})", GUILayout.Height(40)))
             {
                 UploadAllAvatars();
             }
             EditorGUI.EndDisabledGroup(); // End disable group for Upload button
 
-            EditorGUI.BeginDisabledGroup(!isAvatarUploadingAll || isAvatarUploadingCancelled); // Disable group for Upload button
+            EditorGUI.BeginDisabledGroup(!isAvatarUploadingAll || isAvatarUploadingCancelled || !isBuilderPresent); // Disable group for Upload button
             if (GUILayout.Button($"Cancel upload", GUILayout.Height(20)))
             {
                 CancelUpload();
@@ -96,7 +113,7 @@ namespace raspichu.vrc_tools.editor
                 EditorGUILayout.BeginHorizontal();
 
                 // Upload button on the right
-                EditorGUI.BeginDisabledGroup(isAvatarUploading); // Disable group for Upload button
+                EditorGUI.BeginDisabledGroup(isAvatarUploading || !isBuilderPresent); // Disable group for Upload button
                 if (GUILayout.Button("Upload", GUILayout.Width(80)))
                 {
                     isAvatarUploading = true;
@@ -223,7 +240,7 @@ namespace raspichu.vrc_tools.editor
 
             try
             {
-                if (!VRCSdkControlPanel.TryGetBuilder<IVRCSdkAvatarBuilderApi>(out var builder))
+                if (!IsBuilderPresent())
                 {
                     throw new System.Exception("No builder found");
                 }
@@ -233,6 +250,7 @@ namespace raspichu.vrc_tools.editor
                 var vrcAvatar = await VRCApi.GetAvatar(avatarId, true, cancellationToken: GetAvatarCancellationToken.Token);
 
                 SetAvatarStatus(avatarName, AvatarUploadStatus.Uploading);
+                VRCSdkControlPanel.TryGetBuilder<IVRCSdkAvatarBuilderApi>(out var builder);
                 await builder.BuildAndUpload(avatarObject, vrcAvatar, cancellationToken: BuildAndUploadCancellationToken.Token);
 
                 SetAvatarStatus(avatarName, AvatarUploadStatus.Uploaded);
@@ -244,6 +262,11 @@ namespace raspichu.vrc_tools.editor
                 avatarErrorMessages[avatarName] = e.Message; // Store error message
                 Debug.LogError($"Avatar {avatarName} failed to upload: {e.Message}");
             }
+        }
+
+        private bool IsBuilderPresent()
+        {
+            return VRCSdkControlPanel.TryGetBuilder<IVRCSdkAvatarBuilderApi>(out var builder);
         }
 
         private async void UploadAllAvatars()
