@@ -3,6 +3,9 @@
     "rootNamespace": "",
     "references": [
         "VRC.SDK3A",
+        "VRC.SDK3A.Editor",
+        "VRC.SDKBase",
+        "VRC.SDKBase.Editor",
         "nadena.dev.ndmf",
         "nadena.dev.modular-avatar.core",
         "raspichu.vrc_tools.component"
@@ -18,7 +21,9 @@
         "VRCSDK3A.dll",
         "System.Collections.Immutable.dll",
         "VRC.Dynamics.dll",
-        "VRC.SDK3.Dynamics.PhysBone.dll"
+        "VRC.SDK3.Dynamics.PhysBone.dll",
+        "VRCCore-Editor.dll",
+        "VRCSDKBase-Editor.dll"
     ],
     "autoReferenced": true,
     "defineConstraints": [],
