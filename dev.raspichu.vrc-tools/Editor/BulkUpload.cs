@@ -99,7 +99,6 @@ namespace raspichu.vrc_tools.editor
                 EditorGUI.BeginDisabledGroup(isAvatarUploading); // Disable group for Upload button
                 if (GUILayout.Button("Upload", GUILayout.Width(80)))
                 {
-                    Debug.Log($"Uploading avatar: {avatar.gameObject.name}");
                     isAvatarUploading = true;
                     await UploadAvatar(avatar);
                     isAvatarUploading = false;
