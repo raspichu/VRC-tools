@@ -39,7 +39,7 @@ namespace raspichu.vrc_tools.editor
         private bool isAvatarUploadingCancelled = false;
         private string currentAvatarName = "";
 
-        [MenuItem("Window/Pichu/BulkUpload")]
+        [MenuItem("Window/Pichu/Bulk Upload")]
         public static void ShowWindow()
         {
             BulkUpload window = GetWindow<BulkUpload>("Bulk Upload");
