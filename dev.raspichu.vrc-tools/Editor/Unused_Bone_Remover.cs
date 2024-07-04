@@ -26,28 +26,43 @@ namespace raspichu.vrc_tools.editor
         {
             GameObject selectedObject = Selection.activeGameObject;
 
-            if (selectedObject != null)
+            if (selectedObject == null)
             {
-                // Hide the selected object
-                selectedObject.SetActive(false);
+                Debug.Log("No object selected.");
+                return;
+            }
 
-                // Create a copy of the selected object
-                GameObject newObjectCopy = Instantiate(selectedObject, selectedObject.transform.parent);
-                newObjectCopy.SetActive(true); // Show the copy
-
-                newObjectCopy.name = selectedObject.name + "_clean";
-                // Set the copy to active
-                // Select the copy
-                Selection.activeGameObject = newObjectCopy;
-
-                // Remove the unused bones from the copy
-                RemoveUnusedBonesFromObject(newObjectCopy);
-
+            // Create a copy of the selected object
+            GameObject newObjectCopy;
+            if (PrefabUtility.IsPartOfPrefabInstance(selectedObject))
+            {
+                newObjectCopy = (GameObject)PrefabUtility.InstantiatePrefab(PrefabUtility.GetCorrespondingObjectFromSource(selectedObject), selectedObject.transform.parent);
             }
             else
             {
-                Debug.Log("No object selected.");
+                newObjectCopy = Instantiate(selectedObject, selectedObject.transform.parent);
             }
+
+            // Set the copy to active
+            newObjectCopy.SetActive(true); // Show the copy
+
+            newObjectCopy.name = selectedObject.name + "_clean";
+
+            // Register undo for the creation of the new object
+            Undo.RegisterCreatedObjectUndo(newObjectCopy, "Create Cleaned Object");
+
+            // Get the sibling index of the selected object
+            int siblingIndex = selectedObject.transform.GetSiblingIndex();
+            newObjectCopy.transform.SetSiblingIndex(siblingIndex + 1);
+
+            // Select the copy
+            Selection.activeObject = newObjectCopy;
+
+            // Delete the original object
+            Undo.DestroyObjectImmediate(selectedObject);
+
+            // Remove the unused bones from the copy
+            RemoveUnusedBonesFromObject(newObjectCopy);
         }
 
 
