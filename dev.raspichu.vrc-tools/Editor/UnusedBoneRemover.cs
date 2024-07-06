@@ -33,15 +33,16 @@ namespace raspichu.vrc_tools.editor
             }
 
             // Create a copy of the selected object
-            GameObject newObjectCopy;
-            if (PrefabUtility.IsPartOfPrefabInstance(selectedObject))
-            {
-                newObjectCopy = (GameObject)PrefabUtility.InstantiatePrefab(PrefabUtility.GetCorrespondingObjectFromSource(selectedObject), selectedObject.transform.parent);
-            }
-            else
-            {
-                newObjectCopy = Instantiate(selectedObject, selectedObject.transform.parent);
-            }
+            // GameObject newObjectCopy;
+            // if (PrefabUtility.IsPartOfPrefabInstance(selectedObject))
+            // {
+            //     newObjectCopy = (GameObject)PrefabUtility.InstantiatePrefab(PrefabUtility.GetCorrespondingObjectFromSource(selectedObject), selectedObject.transform.parent);
+            // }
+            // else
+            // {
+            // newObjectCopy = Instantiate(selectedObject, selectedObject.transform.parent);
+            // }
+            GameObject newObjectCopy = Instantiate(selectedObject, selectedObject.transform.parent);
 
             // Set the copy to active
             newObjectCopy.SetActive(true); // Show the copy
@@ -59,7 +60,8 @@ namespace raspichu.vrc_tools.editor
             Selection.activeObject = newObjectCopy;
 
             // Delete the original object
-            Undo.DestroyObjectImmediate(selectedObject);
+            // Undo.DestroyObjectImmediate(selectedObject);
+            selectedObject.SetActive(false);
 
             // Remove the unused bones from the copy
             RemoveUnusedBonesFromObject(newObjectCopy);
