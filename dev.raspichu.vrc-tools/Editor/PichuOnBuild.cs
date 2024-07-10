@@ -14,20 +14,23 @@ namespace raspichu.vrc_tools.editor
 
         public bool OnPreprocessAvatar(GameObject avatarGameObject)
         {
+            // #### Change colliders ####
             ChangeColliderReference changeCollider = avatarGameObject.GetComponentInChildren<ChangeColliderReference>();
 
             if (changeCollider != null)
             {
                 Debug.Log("Found ChangeColliderReference component on the avatar.");
-                // Perform any necessary actions with changeCollider here
-
                 changeCollider.ApplyColliderChanges();
             }
 
-            else
+            // #### Enforce blendshapes ####
+            EnforceBlendshape enforceBlendshape = avatarGameObject.GetComponentInChildren<EnforceBlendshape>();
+            if (enforceBlendshape != null)
             {
-                Debug.LogWarning("ChangeColliderReference component not found on the avatar.");
+                Debug.Log("Found EnforceBlendshape component on the avatar.");
+                enforceBlendshape.GenerateSelectedBlendShapes();
             }
+
 
             return true;
         }
