@@ -2,7 +2,8 @@
     "name": "raspichu.vrc_tools.component",
     "rootNamespace": "",
     "references": [
-        "VRC.SDK3A"
+        "VRC.SDK3A",
+        "VRC.SDK3A.Editor"
     ],
     "includePlatforms": [],
     "excludePlatforms": [],
@@ -10,7 +11,8 @@
     "overrideReferences": true,
     "precompiledReferences": [
         "VRCSDKBase.dll",
-        "VRCSDK3A.dll"
+        "VRCSDK3A.dll",
+        "VRCCore-Editor.dll"
     ],
     "autoReferenced": true,
     "defineConstraints": [],
