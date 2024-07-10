@@ -25,9 +25,6 @@ namespace raspichu.vrc_tools.component
             skinnedMeshRenderer = GetComponent<SkinnedMeshRenderer>();
         }
 
-
-
-
         public void GenerateSelectedBlendShapes()
         {
             if (skinnedMeshRenderer == null)

@@ -13,11 +13,16 @@ namespace raspichu.vrc_tools.editor
 
         private EnforceBlendshape enforceBlendshape;
 
-        private bool isAnyBlendShapeSelected;
+        private string blendShapeSearch = "";
+
+        private Vector2 scrollPosition;
+        private bool showBlendShapeList = true; // Toggle to show/hide blendshape list
 
         public override void OnInspectorGUI()
         {
             enforceBlendshape = (EnforceBlendshape)target;
+
+            UpdateBlendShapeSelections();
 
             // Draw the SkinnedMeshRenderer field
             enforceBlendshape.skinnedMeshRenderer = (SkinnedMeshRenderer)EditorGUILayout.ObjectField(
@@ -26,7 +31,7 @@ namespace raspichu.vrc_tools.editor
                 typeof(SkinnedMeshRenderer),
                 true
             );
-            
+
             if (enforceBlendshape.skinnedMeshRenderer == null)
             {
                 EditorGUILayout.HelpBox("Skinned Mesh Renderer is not assigned.", MessageType.Warning);
@@ -35,20 +40,36 @@ namespace raspichu.vrc_tools.editor
 
             // Check if the skinned mesh renderer has changed
             lastSkinnedMeshRenderer = enforceBlendshape.skinnedMeshRenderer;
-            UpdateBlendShapeSelections();
 
-            if (enforceBlendshape.blendShapeSelections.Count > 0)
+
+            blendShapeSearch = EditorGUILayout.TextField("Search BlendShapes", blendShapeSearch);
+
+            // Arrow to collapse/expand blendshape list
+            showBlendShapeList = EditorGUILayout.Foldout(showBlendShapeList, "BlendShapes List");
+            if (showBlendShapeList)
             {
-                EditorGUILayout.LabelField("Select BlendShapes to Duplicate:");
-                foreach (var selection in enforceBlendshape.blendShapeSelections)
+                // Begin sub box for blendshape list
+                EditorGUILayout.BeginVertical(GUI.skin.box);
+                EditorGUILayout.LabelField("BlendShapes", EditorStyles.boldLabel);
+                // Begin scroll view for blendshape list
+                scrollPosition = EditorGUILayout.BeginScrollView(scrollPosition);
+
+                if (enforceBlendshape.blendShapeSelections.Count > 0)
                 {
-                    selection.isSelected = EditorGUILayout.Toggle(selection.blendShapeName, selection.isSelected);
+                    foreach (var selection in enforceBlendshape.blendShapeSelections)
+                    {
+                        selection.isSelected = EditorGUILayout.Toggle(selection.blendShapeName, selection.isSelected);
+                    }
+                }
+                else
+                {
+                    EditorGUILayout.HelpBox("Blendshapes need to have a weight greater than 0 to appear.", MessageType.Info);
                 }
 
-                if (GUILayout.Button("Generate Selected BlendShapes")  && isAnyBlendShapeSelected == true)
-                {
-                    enforceBlendshape.GenerateSelectedBlendShapes();
-                }
+                // End scroll view for blendshape list
+                EditorGUILayout.EndScrollView();
+                // End sub box for blendshape list
+                EditorGUILayout.EndVertical();
             }
         }
 
@@ -75,13 +96,6 @@ namespace raspichu.vrc_tools.editor
                     {
                         blendShapesToRemove.Add(enforceBlendshape.blendShapeSelections[i].blendShapeName);
                     }
-                    else
-                    {
-                        if (enforceBlendshape.blendShapeSelections[i].isSelected)
-                        {
-                            isAnyBlendShapeSelected = true;
-                        }
-                    }
                 }
             }
 
@@ -102,6 +116,9 @@ namespace raspichu.vrc_tools.editor
                     });
                 }
             }
+
+            enforceBlendshape.blendShapeSelections.RemoveAll(selection => !selection.blendShapeName.ToLower().Contains(blendShapeSearch.ToLower()));
+
         }
 
 
