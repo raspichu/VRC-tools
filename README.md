@@ -39,13 +39,17 @@ Avatars that don't have blueprint attached will give an error.
 
 
 ### Installation
-
-1. **Manual Installation:**
-
+1. **VCC Listing**
+   - Go to [My VRChat Creator Companion listing](https://raspichu.github.io/vpm-listing/)
+   - Press "Add to VCC"
+   - Go to your project in `VCC -> Manage Project`
+   - Search and add `Pichu VRC tools`
+     
+2. **Manual Installation:**
    - Clone or download this repository.
    - Add the files to your project.
 
-2. **Unity Package:**
+3. **Unity Package:**
    - Alternatively, download the `dev.raspichu.vrc-tools.unitypackage` file from the [releases](https://github.com/raspichu/VRC-Tools/releases) section.
    - Import the package into your Unity project by double-clicking it or using `Assets -> Import Package -> Custom Package`.
 
