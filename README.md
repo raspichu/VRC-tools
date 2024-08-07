@@ -38,7 +38,7 @@ Avatars that don't have blueprint attached will give an error.
 2. Press `Upload All (X)`
 
 
-### Installation
+## Installation
 1. **VCC Listing**
    - Go to [My VRChat Creator Companion listing](https://raspichu.github.io/vpm-listing/)
    - Press "Add to VCC"
