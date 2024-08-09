@@ -49,7 +49,6 @@ namespace raspichu.vrc_tools.component
             Dictionary<int, float> originalBlendShapeWeights = new Dictionary<int, float>();
 
             // Apply the cloned mesh with new blendshapes back to the renderer
-            renderer.sharedMesh = clonedMesh;
 
             // Store original blendshape weights and set new blendshapes on clonedMesh
             List<string> blendshapesToRemove = new List<string>();
@@ -103,7 +102,8 @@ namespace raspichu.vrc_tools.component
 
 
 
-            RemoveBlendShapes(clonedMesh, blendshapesToRemove);
+            Mesh finalMesh = RemoveBlendShapes(clonedMesh, blendshapesToRemove);
+            renderer.sharedMesh = finalMesh;
 
 
 
@@ -130,24 +130,29 @@ namespace raspichu.vrc_tools.component
             mesh.tangents = tangents;
         }
 
-        void RemoveBlendShapes(Mesh mesh, List<string> blendShapesToRemove)
+        private Mesh RemoveBlendShapes(Mesh mesh, List<string> blendShapesToRemove)
         {
             var blendShapeCount = mesh.blendShapeCount;
 
-            // Create a new mesh
-            Mesh newMesh = new Mesh
-            {
-                vertices = mesh.vertices,
-                normals = mesh.normals,
-                tangents = mesh.tangents,
-                uv = mesh.uv,
-                uv2 = mesh.uv2,
-                triangles = mesh.triangles,
-                boneWeights = mesh.boneWeights,
-                bindposes = mesh.bindposes
-            };
 
-            // Add all blend shapes except the one to be removed
+            // Create a new mesh
+
+            Mesh newMesh = CopyMesh(mesh);
+
+
+            // Mesh newMesh = new Mesh
+            // {
+            //     vertices = mesh.vertices,
+            //     normals = mesh.normals,
+            //     tangents = mesh.tangents,
+            //     uv = mesh.uv,
+            //     uv2 = mesh.uv2,
+            //     triangles = mesh.triangles,
+            //     boneWeights = mesh.boneWeights,
+            //     bindposes = mesh.bindposes
+            // };
+
+            // Add all blend shapes except the ones to be removed
             for (int i = 0; i < blendShapeCount; i++)
             {
                 string name = mesh.GetBlendShapeName(i);
@@ -167,33 +172,72 @@ namespace raspichu.vrc_tools.component
                 }
             }
 
-            // Replace the original mesh with the new mesh
-            mesh.Clear();
-            mesh.vertices = newMesh.vertices;
-            mesh.normals = newMesh.normals;
-            mesh.tangents = newMesh.tangents;
-            mesh.uv = newMesh.uv;
-            mesh.uv2 = newMesh.uv2;
-            mesh.triangles = newMesh.triangles;
-            mesh.boneWeights = newMesh.boneWeights;
-            mesh.bindposes = newMesh.bindposes;
+            return newMesh;
 
-            // Remove blend shapes from the original mesh
-            // Clear and re-add the blend shapes from newMesh
-            for (int i = 0; i < newMesh.blendShapeCount; i++)
-            {
-                string name = newMesh.GetBlendShapeName(i);
-                int frameCount = newMesh.GetBlendShapeFrameCount(i);
-                for (int frame = 0; frame < frameCount; frame++)
-                {
-                    Vector3[] deltaVertices = new Vector3[newMesh.vertexCount];
-                    Vector3[] deltaNormals = new Vector3[newMesh.vertexCount];
-                    Vector3[] deltaTangents = new Vector3[newMesh.vertexCount];
-                    newMesh.GetBlendShapeFrameVertices(i, frame, deltaVertices, deltaNormals, deltaTangents);
-                    mesh.AddBlendShapeFrame(name, newMesh.GetBlendShapeFrameWeight(i, frame), deltaVertices, deltaNormals, deltaTangents);
-                }
-            }
+            // Replace the original mesh with the new mesh
+            // CopyMesh(newMesh, mesh);
+            // mesh.Clear();
+            // mesh.vertices = newMesh.vertices;
+            // mesh.normals = newMesh.normals;
+            // mesh.tangents = newMesh.tangents;
+            // mesh.uv = newMesh.uv;
+            // mesh.uv2 = newMesh.uv2;
+            // mesh.triangles = newMesh.triangles;
+            // mesh.boneWeights = newMesh.boneWeights;
+            // mesh.bindposes = newMesh.bindposes;
+
+            // Re-add blend shapes from the newMesh
+            // for (int i = 0; i < newMesh.blendShapeCount; i++)
+            // {
+            //     string name = newMesh.GetBlendShapeName(i);
+            //     int frameCount = newMesh.GetBlendShapeFrameCount(i);
+            //     for (int frame = 0; frame < frameCount; frame++)
+            //     {
+            //         Vector3[] deltaVertices = new Vector3[newMesh.vertexCount];
+            //         Vector3[] deltaNormals = new Vector3[newMesh.vertexCount];
+            //         Vector3[] deltaTangents = new Vector3[newMesh.vertexCount];
+            //         newMesh.GetBlendShapeFrameVertices(i, frame, deltaVertices, deltaNormals, deltaTangents);
+            //         mesh.AddBlendShapeFrame(name, newMesh.GetBlendShapeFrameWeight(i, frame), deltaVertices, deltaNormals, deltaTangents);
+            //     }
+            // }
         }
+
+
+        private Mesh CopyMesh(Mesh from, Mesh to = null)
+        {
+            if (to == null)
+            {
+                to = new Mesh();
+            }
+            to.Clear();
+            to.vertices = from.vertices;
+            to.normals = from.normals;
+            to.tangents = from.tangents;
+            to.uv = from.uv;
+            to.uv2 = from.uv2;
+            to.triangles = from.triangles;
+            to.boneWeights = from.boneWeights;
+            to.bindposes = from.bindposes;
+            to.subMeshCount = from.subMeshCount;
+            for (int i = 0; i < from.subMeshCount; i++)
+            {
+                to.SetIndices(from.GetIndices(i), from.GetTopology(i), i);
+            }
+            to.name = from.name;
+            return to;
+        }
+        // {
+        //     var copy = new Mesh();
+        //     foreach (var property in typeof(Mesh).GetProperties())
+        //     {
+        //         if (property.GetSetMethod() != null && property.GetGetMethod() != null)
+        //         {
+        //             property.SetValue(copy, property.GetValue(mesh, null), null);
+        //         }
+        //     }
+        //     return copy;
+        // }
+
     }
 
 }
