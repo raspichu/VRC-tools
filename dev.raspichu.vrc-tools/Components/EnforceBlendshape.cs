@@ -2,6 +2,7 @@ using UnityEngine;
 using UnityEditor;
 using System.Collections.Generic;
 using VRC.SDKBase;
+using System.Linq;
 
 namespace raspichu.vrc_tools.component
 {
@@ -48,8 +49,6 @@ namespace raspichu.vrc_tools.component
             // Dictionary to store original blendshape weights
             Dictionary<int, float> originalBlendShapeWeights = new Dictionary<int, float>();
 
-            // Apply the cloned mesh with new blendshapes back to the renderer
-
             // Store original blendshape weights and set new blendshapes on clonedMesh
             List<string> blendshapesToRemove = new List<string>();
 
@@ -95,15 +94,14 @@ namespace raspichu.vrc_tools.component
                 originalMesh.GetBlendShapeFrameVertices(blendShapeIndex, 0, deltaVertices, deltaNormals, deltaTangents);
                 ModifyMeshBlendShape(clonedMesh, blendShapeIndex, deltaVertices, deltaNormals, deltaTangents, weight);
                 renderer.SetBlendShapeWeight(blendShapeIndex, 0);
-
                 blendshapesToRemove.Add(selection.blendShapeName);
-                // RemoveBlendShape_old(clonedMesh, selection.blendShapeName);
             }
 
+            // Remove the original blendshapes from the cloned mesh
+            RemoveBlendShapes(clonedMesh, blendshapesToRemove);
 
-
-            Mesh finalMesh = RemoveBlendShapes(clonedMesh, blendshapesToRemove);
-            renderer.sharedMesh = finalMesh;
+            // Apply the cloned mesh with new blendshapes back to the renderer
+            renderer.sharedMesh = clonedMesh;
 
 
 
@@ -130,114 +128,51 @@ namespace raspichu.vrc_tools.component
             mesh.tangents = tangents;
         }
 
-        private Mesh RemoveBlendShapes(Mesh mesh, List<string> blendShapesToRemove)
+        private void RemoveBlendShapes(Mesh mesh, List<string> blendShapesToRemove)
         {
-            var blendShapeCount = mesh.blendShapeCount;
-
-
             // Create a new mesh
+            // Store the blend shapes to keep
+            var blendShapeCount = mesh.blendShapeCount;
+            var blendShapesToKeep = new List<(string name, List<(int frame, Vector3[] deltaVertices, Vector3[] deltaNormals, Vector3[] deltaTangents, float weight)> frameData)>();
 
-            Mesh newMesh = CopyMesh(mesh);
-
-
-            // Mesh newMesh = new Mesh
-            // {
-            //     vertices = mesh.vertices,
-            //     normals = mesh.normals,
-            //     tangents = mesh.tangents,
-            //     uv = mesh.uv,
-            //     uv2 = mesh.uv2,
-            //     triangles = mesh.triangles,
-            //     boneWeights = mesh.boneWeights,
-            //     bindposes = mesh.bindposes
-            // };
-
-            // Add all blend shapes except the ones to be removed
+            // Gather blend shapes that will be kept
             for (int i = 0; i < blendShapeCount; i++)
             {
                 string name = mesh.GetBlendShapeName(i);
                 if (blendShapesToRemove.Contains(name))
                 {
-                    Debug.Log($"Removing blendshape: {name}");
+                    Debug.Log($"Skipping blendshape: {name}");
                     continue;
                 }
+
                 int frameCount = mesh.GetBlendShapeFrameCount(i);
+                var frameData = new List<(int frame, Vector3[] deltaVertices, Vector3[] deltaNormals, Vector3[] deltaTangents, float weight)>();
+
                 for (int frame = 0; frame < frameCount; frame++)
                 {
                     Vector3[] deltaVertices = new Vector3[mesh.vertexCount];
                     Vector3[] deltaNormals = new Vector3[mesh.vertexCount];
                     Vector3[] deltaTangents = new Vector3[mesh.vertexCount];
                     mesh.GetBlendShapeFrameVertices(i, frame, deltaVertices, deltaNormals, deltaTangents);
-                    newMesh.AddBlendShapeFrame(name, mesh.GetBlendShapeFrameWeight(i, frame), deltaVertices, deltaNormals, deltaTangents);
+                    float weight = mesh.GetBlendShapeFrameWeight(i, frame); // Use index to get weight
+                    frameData.Add((frame, deltaVertices, deltaNormals, deltaTangents, weight));
+                }
+
+                blendShapesToKeep.Add((name, frameData));
+            }
+
+            // Clear the existing blend shapes from the new mesh
+            mesh.ClearBlendShapes();
+
+            // Re-add the blend shapes
+            foreach (var (name, frameData) in blendShapesToKeep)
+            {
+                foreach (var (frame, deltaVertices, deltaNormals, deltaTangents, weight) in frameData)
+                {
+                    mesh.AddBlendShapeFrame(name, weight, deltaVertices, deltaNormals, deltaTangents);
                 }
             }
-
-            return newMesh;
-
-            // Replace the original mesh with the new mesh
-            // CopyMesh(newMesh, mesh);
-            // mesh.Clear();
-            // mesh.vertices = newMesh.vertices;
-            // mesh.normals = newMesh.normals;
-            // mesh.tangents = newMesh.tangents;
-            // mesh.uv = newMesh.uv;
-            // mesh.uv2 = newMesh.uv2;
-            // mesh.triangles = newMesh.triangles;
-            // mesh.boneWeights = newMesh.boneWeights;
-            // mesh.bindposes = newMesh.bindposes;
-
-            // Re-add blend shapes from the newMesh
-            // for (int i = 0; i < newMesh.blendShapeCount; i++)
-            // {
-            //     string name = newMesh.GetBlendShapeName(i);
-            //     int frameCount = newMesh.GetBlendShapeFrameCount(i);
-            //     for (int frame = 0; frame < frameCount; frame++)
-            //     {
-            //         Vector3[] deltaVertices = new Vector3[newMesh.vertexCount];
-            //         Vector3[] deltaNormals = new Vector3[newMesh.vertexCount];
-            //         Vector3[] deltaTangents = new Vector3[newMesh.vertexCount];
-            //         newMesh.GetBlendShapeFrameVertices(i, frame, deltaVertices, deltaNormals, deltaTangents);
-            //         mesh.AddBlendShapeFrame(name, newMesh.GetBlendShapeFrameWeight(i, frame), deltaVertices, deltaNormals, deltaTangents);
-            //     }
-            // }
         }
-
-
-        private Mesh CopyMesh(Mesh from, Mesh to = null)
-        {
-            if (to == null)
-            {
-                to = new Mesh();
-            }
-            to.Clear();
-            to.vertices = from.vertices;
-            to.normals = from.normals;
-            to.tangents = from.tangents;
-            to.uv = from.uv;
-            to.uv2 = from.uv2;
-            to.triangles = from.triangles;
-            to.boneWeights = from.boneWeights;
-            to.bindposes = from.bindposes;
-            to.subMeshCount = from.subMeshCount;
-            for (int i = 0; i < from.subMeshCount; i++)
-            {
-                to.SetIndices(from.GetIndices(i), from.GetTopology(i), i);
-            }
-            to.name = from.name;
-            return to;
-        }
-        // {
-        //     var copy = new Mesh();
-        //     foreach (var property in typeof(Mesh).GetProperties())
-        //     {
-        //         if (property.GetSetMethod() != null && property.GetGetMethod() != null)
-        //         {
-        //             property.SetValue(copy, property.GetValue(mesh, null), null);
-        //         }
-        //     }
-        //     return copy;
-        // }
-
     }
 
 }
