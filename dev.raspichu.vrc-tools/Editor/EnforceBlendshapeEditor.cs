@@ -131,8 +131,16 @@ namespace raspichu.vrc_tools.editor
             }
 
             // Apply search filter
-            enforceBlendshape.blendShapeSelections = new List<EnforceBlendshape.BlendShapeSelection>(allBlendShapeSelections
-                .Where(selection => selection.blendShapeName.ToLower().Contains(blendShapeSearch.ToLower())).ToList());
+            // enforceBlendshape.blendShapeSelections = new List<EnforceBlendshape.BlendShapeSelection>(allBlendShapeSelections
+            //     .Where(selection => selection.blendShapeName.ToLower().Contains(blendShapeSearch.ToLower())).ToList());
+            serializedEnforceBlendshape.Update();
+            blendShapeSelectionsProp.arraySize = allBlendShapeSelections.Count;
+            for (int i = 0; i < allBlendShapeSelections.Count; i++)
+            {
+                var blendShapeProp = blendShapeSelectionsProp.GetArrayElementAtIndex(i);
+                blendShapeProp.FindPropertyRelative("blendShapeName").stringValue = allBlendShapeSelections[i].blendShapeName;
+            }
+            serializedEnforceBlendshape.ApplyModifiedProperties();
         }
     }
 }

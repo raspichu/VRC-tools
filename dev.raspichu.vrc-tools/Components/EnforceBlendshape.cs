@@ -88,15 +88,15 @@ namespace raspichu.vrc_tools.component
                 Vector3[] deltaTangents = new Vector3[vertexCount];
 
                 // As a new blendshape
-                originalMesh.GetBlendShapeFrameVertices(blendShapeIndex, 0, deltaVertices, deltaNormals, deltaTangents);
-                string newBlendShapeName = "[PI]_" + selection.blendShapeName;
-                int newBlendShapeIndex = clonedMesh.blendShapeCount; // Get the index of the new blendshape frame
-                clonedMesh.AddBlendShapeFrame(newBlendShapeName, 100f, deltaVertices, deltaNormals, deltaTangents);
-                float originalWeight = originalBlendShapeWeights[i];
-                renderer.SetBlendShapeWeight(blendShapeIndex, 0);
-                newBlendShapeIndex = clonedMesh.GetBlendShapeIndex(newBlendShapeName);
-                renderer.SetBlendShapeWeight(newBlendShapeIndex, originalWeight);
-                Debug.Log($"New blendshape '{newBlendShapeName}' added with weight {originalWeight}.");
+                // originalMesh.GetBlendShapeFrameVertices(blendShapeIndex, 0, deltaVertices, deltaNormals, deltaTangents);
+                // string newBlendShapeName = "[PI]_" + selection.blendShapeName;
+                // int newBlendShapeIndex = clonedMesh.blendShapeCount; // Get the index of the new blendshape frame
+                // clonedMesh.AddBlendShapeFrame(newBlendShapeName, 100f, deltaVertices, deltaNormals, deltaTangents);
+                // float originalWeight = originalBlendShapeWeights[i];
+                // renderer.SetBlendShapeWeight(blendShapeIndex, 0);
+                // newBlendShapeIndex = clonedMesh.GetBlendShapeIndex(newBlendShapeName);
+                // renderer.SetBlendShapeWeight(newBlendShapeIndex, originalWeight);
+                // Debug.Log($"New blendshape '{newBlendShapeName}' added with weight {originalWeight}.");
 
                 // Edit mesh directly
                 // originalMesh.GetBlendShapeFrameVertices(blendShapeIndex, 0, deltaVertices, deltaNormals, deltaTangents);
