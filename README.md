@@ -37,6 +37,12 @@ Avatars that don't have blueprint attached will give an error.
 1. Open the window navigating to `Window -> Pichu -> Bulk Upload`
 2. Press `Upload All (X)`
 
+### Enforce Blendshape
+The Enforce Blendshape tool ensures that a specified blendshape is consistently applied across the selected mesh, it will apply the blendshape to the mesh and remove it so no animation will change it.
+
+1. Add the Enforce Blendshape component to your GameObject.
+2. Select the mesh and the blendshapes that you want to have (Only the ones with >0 weight will show up)
+
 
 ## Installation
 1. **VCC Listing**
