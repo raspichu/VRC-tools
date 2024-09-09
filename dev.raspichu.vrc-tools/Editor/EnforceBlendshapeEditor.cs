@@ -77,11 +77,11 @@ namespace raspichu.vrc_tools.editor
             }
 
             // If any changes were detected, apply them and mark the object as dirty
-            if (EditorGUI.EndChangeCheck())
-            {
-                serializedEnforceBlendshape.ApplyModifiedProperties();
-                UpdateBlendShapeSelections();
-            }
+            // if (EditorGUI.EndChangeCheck())
+            // {
+            serializedEnforceBlendshape.ApplyModifiedProperties();
+            UpdateBlendShapeSelections();
+            // }
         }
 
         private void UpdateBlendShapeSelections()
