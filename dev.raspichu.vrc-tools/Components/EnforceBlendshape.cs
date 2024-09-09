@@ -27,8 +27,10 @@ namespace raspichu.vrc_tools.component
                 skinnedMeshRenderer = GetComponent<SkinnedMeshRenderer>();
             }
             Debug.Log("OnValidate");
+#if UNITY_EDITOR
             Undo.RecordObject(this, "Modified Blendshape Selection");
             EditorUtility.SetDirty(this);
+#endif
         }
 
         public void GenerateSelectedBlendShapes()
