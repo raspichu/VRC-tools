@@ -9,50 +9,45 @@ namespace raspichu.vrc_tools.editor
     [CustomEditor(typeof(EnforceBlendshape))]
     public class EnforceBlendshapeEditor : Editor
     {
-        private SkinnedMeshRenderer lastSkinnedMeshRenderer;
-
-        private EnforceBlendshape enforceBlendshape;
+        private SerializedObject serializedEnforceBlendshape;
+        private SerializedProperty skinnedMeshRendererProp;
+        private SerializedProperty blendShapeSelectionsProp;
 
         private string blendShapeSearch = "";
 
         private Vector2 scrollPosition;
-        private bool showBlendShapeList = true; // Toggle to show/hide blendshape list
+        private bool showBlendShapeList = true;
 
         private List<EnforceBlendshape.BlendShapeSelection> allBlendShapeSelections = new List<EnforceBlendshape.BlendShapeSelection>();
 
-        public void OnEnable()
+        private void OnEnable()
         {
-            enforceBlendshape = (EnforceBlendshape)target;
+            serializedEnforceBlendshape = new SerializedObject(target);
+            skinnedMeshRendererProp = serializedEnforceBlendshape.FindProperty("skinnedMeshRenderer");
+            blendShapeSelectionsProp = serializedEnforceBlendshape.FindProperty("blendShapeSelections");
+
             UpdateBlendShapeSelections();
         }
 
         public override void OnInspectorGUI()
         {
-            enforceBlendshape = (EnforceBlendshape)target;
+            serializedEnforceBlendshape.Update();
 
             // Start checking for changes
             EditorGUI.BeginChangeCheck();
 
             // Draw the SkinnedMeshRenderer field
-            enforceBlendshape.skinnedMeshRenderer = (SkinnedMeshRenderer)EditorGUILayout.ObjectField(
-                "Skinned Mesh Renderer",
-                enforceBlendshape.skinnedMeshRenderer,
-                typeof(SkinnedMeshRenderer),
-                true
-            );
+            EditorGUILayout.PropertyField(skinnedMeshRendererProp);
 
-            if (enforceBlendshape.skinnedMeshRenderer == null)
+            if (skinnedMeshRendererProp.objectReferenceValue == null)
             {
                 EditorGUILayout.HelpBox("Skinned Mesh Renderer is not assigned.", MessageType.Warning);
                 return;
             }
 
-            // Check if the skinned mesh renderer has changed
-            lastSkinnedMeshRenderer = enforceBlendshape.skinnedMeshRenderer;
-
             blendShapeSearch = EditorGUILayout.TextField("Search BlendShapes", blendShapeSearch);
 
-            // Arrow to collapse/expand blendshape list
+            // Toggle for blendshape list
             showBlendShapeList = EditorGUILayout.Foldout(showBlendShapeList, "BlendShapes List");
             if (showBlendShapeList)
             {
@@ -62,11 +57,16 @@ namespace raspichu.vrc_tools.editor
                 // Begin scroll view for blendshape list
                 scrollPosition = EditorGUILayout.BeginScrollView(scrollPosition);
 
-                foreach (var selection in allBlendShapeSelections)
+                // Display blendshapes
+                for (int i = 0; i < blendShapeSelectionsProp.arraySize; i++)
                 {
-                    if (selection.blendShapeName.ToLower().Contains(blendShapeSearch.ToLower()))
+                    var blendShapeProp = blendShapeSelectionsProp.GetArrayElementAtIndex(i);
+                    var blendShapeNameProp = blendShapeProp.FindPropertyRelative("blendShapeName");
+                    var isSelectedProp = blendShapeProp.FindPropertyRelative("isSelected");
+
+                    if (blendShapeNameProp.stringValue.ToLower().Contains(blendShapeSearch.ToLower()))
                     {
-                        selection.isSelected = EditorGUILayout.Toggle(selection.blendShapeName, selection.isSelected);
+                        EditorGUILayout.PropertyField(isSelectedProp, new GUIContent(blendShapeNameProp.stringValue));
                     }
                 }
 
@@ -76,19 +76,18 @@ namespace raspichu.vrc_tools.editor
                 EditorGUILayout.EndVertical();
             }
 
+            // If any changes were detected, apply them and mark the object as dirty
             if (EditorGUI.EndChangeCheck())
             {
-                // Register undo and mark the object as dirty when a change occurs
-                Undo.RecordObject(enforceBlendshape, "Modified Blendshape Selection");
-                EditorUtility.SetDirty(enforceBlendshape);
-
-                // Update the blendshape selections list
+                serializedEnforceBlendshape.ApplyModifiedProperties();
                 UpdateBlendShapeSelections();
             }
         }
 
         private void UpdateBlendShapeSelections()
         {
+            var enforceBlendshape = (EnforceBlendshape)target;
+
             if (enforceBlendshape.skinnedMeshRenderer == null)
                 return;
 
