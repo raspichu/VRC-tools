@@ -22,8 +22,13 @@ namespace raspichu.vrc_tools.component
 
         private void OnValidate()
         {
-            // Ensure skinnedMeshRenderer is set to the component's SkinnedMeshRenderer
-            skinnedMeshRenderer = GetComponent<SkinnedMeshRenderer>();
+            if (skinnedMeshRenderer == null)
+            {
+                skinnedMeshRenderer = GetComponent<SkinnedMeshRenderer>();
+            }
+            Debug.Log("OnValidate");
+            Undo.RecordObject(this, "Modified Blendshape Selection");
+            EditorUtility.SetDirty(this);
         }
 
         public void GenerateSelectedBlendShapes()
@@ -51,6 +56,8 @@ namespace raspichu.vrc_tools.component
 
             // Store original blendshape weights and set new blendshapes on clonedMesh
             List<string> blendshapesToRemove = new List<string>();
+
+            renderer.sharedMesh = clonedMesh;
 
             for (int i = 0; i < blendShapeSelections.Count; i++)
             {
@@ -81,35 +88,41 @@ namespace raspichu.vrc_tools.component
                 Vector3[] deltaTangents = new Vector3[vertexCount];
 
                 // As a new blendshape
-                // originalMesh.GetBlendShapeFrameVertices(blendShapeIndex, 0, deltaVertices, deltaNormals, deltaTangents);
-                // string newBlendShapeName = "[PI]_" + selection.blendShapeName;
-                // int newBlendShapeIndex = clonedMesh.blendShapeCount; // Get the index of the new blendshape frame
-                // clonedMesh.AddBlendShapeFrame(newBlendShapeName, 100f, deltaVertices, deltaNormals, deltaTangents);
-                // float originalWeight = originalBlendShapeWeights[i];
-                // renderer.SetBlendShapeWeight(blendShapeIndex, 0);
-                // newBlendShapeIndex = clonedMesh.GetBlendShapeIndex(newBlendShapeName);
-                // renderer.SetBlendShapeWeight(newBlendShapeIndex, originalWeight);
+                originalMesh.GetBlendShapeFrameVertices(blendShapeIndex, 0, deltaVertices, deltaNormals, deltaTangents);
+                string newBlendShapeName = "[PI]_" + selection.blendShapeName;
+                int newBlendShapeIndex = clonedMesh.blendShapeCount; // Get the index of the new blendshape frame
+                clonedMesh.AddBlendShapeFrame(newBlendShapeName, 100f, deltaVertices, deltaNormals, deltaTangents);
+                float originalWeight = originalBlendShapeWeights[i];
+                renderer.SetBlendShapeWeight(blendShapeIndex, 0);
+                newBlendShapeIndex = clonedMesh.GetBlendShapeIndex(newBlendShapeName);
+                renderer.SetBlendShapeWeight(newBlendShapeIndex, originalWeight);
+                Debug.Log($"New blendshape '{newBlendShapeName}' added with weight {originalWeight}.");
 
                 // Edit mesh directly
-                originalMesh.GetBlendShapeFrameVertices(blendShapeIndex, 0, deltaVertices, deltaNormals, deltaTangents);
-                ModifyMeshBlendShape(clonedMesh, blendShapeIndex, deltaVertices, deltaNormals, deltaTangents, weight);
-                renderer.SetBlendShapeWeight(blendShapeIndex, 0);
+                // originalMesh.GetBlendShapeFrameVertices(blendShapeIndex, 0, deltaVertices, deltaNormals, deltaTangents);
+                // ModifyMeshBlendShape(renderer, blendShapeIndex, deltaVertices, deltaNormals, deltaTangents, weight);
+                // renderer.SetBlendShapeWeight(blendShapeIndex, 0);
+
+
+                // Add the original blendshape to the list of blendshapes to remove
                 blendshapesToRemove.Add(selection.blendShapeName);
             }
 
             // Remove the original blendshapes from the cloned mesh
-            RemoveBlendShapes(clonedMesh, blendshapesToRemove);
+            RemoveBlendShapes(renderer, blendshapesToRemove);
 
             // Apply the cloned mesh with new blendshapes back to the renderer
-            renderer.sharedMesh = clonedMesh;
 
 
 
             Debug.Log("New blendshapes created and applied to the cloned mesh. Original blendshapes reset.");
         }
 
-        private void ModifyMeshBlendShape(Mesh mesh, int blendShapeIndex, Vector3[] deltaVertices, Vector3[] deltaNormals, Vector3[] deltaTangents, float weight)
+        private void ModifyMeshBlendShape(SkinnedMeshRenderer renderer, int blendShapeIndex, Vector3[] deltaVertices, Vector3[] deltaNormals, Vector3[] deltaTangents, float weight)
         {
+
+            Mesh mesh = renderer.sharedMesh;
+
             // Modify mesh vertices, normals, tangents based on the blendshape frame deltas and weight
             Vector3[] vertices = mesh.vertices;
             Vector3[] normals = mesh.normals;
@@ -128,12 +141,13 @@ namespace raspichu.vrc_tools.component
             mesh.tangents = tangents;
         }
 
-        private void RemoveBlendShapes(Mesh mesh, List<string> blendShapesToRemove)
+        private void RemoveBlendShapes(SkinnedMeshRenderer renderer, List<string> blendShapesToRemove)
         {
-            // Create a new mesh
+            Mesh mesh = renderer.sharedMesh;
+
             // Store the blend shapes to keep
             var blendShapeCount = mesh.blendShapeCount;
-            var blendShapesToKeep = new List<(string name, List<(int frame, Vector3[] deltaVertices, Vector3[] deltaNormals, Vector3[] deltaTangents, float weight)> frameData)>();
+            var blendShapesToKeep = new List<(string name, List<(int index, int frame, Vector3[] deltaVertices, Vector3[] deltaNormals, Vector3[] deltaTangents, float weight)> frameData)>();
 
             // Gather blend shapes that will be kept
             for (int i = 0; i < blendShapeCount; i++)
@@ -141,12 +155,13 @@ namespace raspichu.vrc_tools.component
                 string name = mesh.GetBlendShapeName(i);
                 if (blendShapesToRemove.Contains(name))
                 {
-                    Debug.Log($"Skipping blendshape: {name}");
-                    continue;
+                    name = "[IGNORED]_" + name;
+                    // Debug.Log($"Skipping blendshape: {name}");
+                    // continue;
                 }
 
                 int frameCount = mesh.GetBlendShapeFrameCount(i);
-                var frameData = new List<(int frame, Vector3[] deltaVertices, Vector3[] deltaNormals, Vector3[] deltaTangents, float weight)>();
+                var frameData = new List<(int index, int frame, Vector3[] deltaVertices, Vector3[] deltaNormals, Vector3[] deltaTangents, float weight)>();
 
                 for (int frame = 0; frame < frameCount; frame++)
                 {
@@ -154,9 +169,11 @@ namespace raspichu.vrc_tools.component
                     Vector3[] deltaNormals = new Vector3[mesh.vertexCount];
                     Vector3[] deltaTangents = new Vector3[mesh.vertexCount];
                     mesh.GetBlendShapeFrameVertices(i, frame, deltaVertices, deltaNormals, deltaTangents);
-                    float weight = mesh.GetBlendShapeFrameWeight(i, frame); // Use index to get weight
-                    frameData.Add((frame, deltaVertices, deltaNormals, deltaTangents, weight));
+                    float weight = renderer.GetBlendShapeWeight(i);
+                    frameData.Add((i, frame, deltaVertices, deltaNormals, deltaTangents, weight));
                 }
+
+                // mesh.AddBlendShapeFrame(name, weight, deltaVertices, deltaNormals, deltaTangents);
 
                 blendShapesToKeep.Add((name, frameData));
             }
@@ -167,9 +184,11 @@ namespace raspichu.vrc_tools.component
             // Re-add the blend shapes
             foreach (var (name, frameData) in blendShapesToKeep)
             {
-                foreach (var (frame, deltaVertices, deltaNormals, deltaTangents, weight) in frameData)
+                foreach (var (index, frame, deltaVertices, deltaNormals, deltaTangents, weight) in frameData)
                 {
-                    mesh.AddBlendShapeFrame(name, weight, deltaVertices, deltaNormals, deltaTangents);
+                    mesh.AddBlendShapeFrame(name, 100f, deltaVertices, deltaNormals, deltaTangents);
+                    // Set the weight of the blend shape frame
+                    renderer.SetBlendShapeWeight(index, weight);
                 }
             }
         }

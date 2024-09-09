@@ -1,7 +1,7 @@
 using UnityEngine;
 using UnityEditor;
 using System.Collections.Generic;
-
+using System.Linq;
 using raspichu.vrc_tools.component;
 
 namespace raspichu.vrc_tools.editor
@@ -18,11 +18,20 @@ namespace raspichu.vrc_tools.editor
         private Vector2 scrollPosition;
         private bool showBlendShapeList = true; // Toggle to show/hide blendshape list
 
+        private List<EnforceBlendshape.BlendShapeSelection> allBlendShapeSelections = new List<EnforceBlendshape.BlendShapeSelection>();
+
+        public void OnEnable()
+        {
+            enforceBlendshape = (EnforceBlendshape)target;
+            UpdateBlendShapeSelections();
+        }
+
         public override void OnInspectorGUI()
         {
             enforceBlendshape = (EnforceBlendshape)target;
 
-            UpdateBlendShapeSelections();
+            // Start checking for changes
+            EditorGUI.BeginChangeCheck();
 
             // Draw the SkinnedMeshRenderer field
             enforceBlendshape.skinnedMeshRenderer = (SkinnedMeshRenderer)EditorGUILayout.ObjectField(
@@ -41,7 +50,6 @@ namespace raspichu.vrc_tools.editor
             // Check if the skinned mesh renderer has changed
             lastSkinnedMeshRenderer = enforceBlendshape.skinnedMeshRenderer;
 
-
             blendShapeSearch = EditorGUILayout.TextField("Search BlendShapes", blendShapeSearch);
 
             // Arrow to collapse/expand blendshape list
@@ -54,22 +62,28 @@ namespace raspichu.vrc_tools.editor
                 // Begin scroll view for blendshape list
                 scrollPosition = EditorGUILayout.BeginScrollView(scrollPosition);
 
-                if (enforceBlendshape.blendShapeSelections.Count > 0)
+                foreach (var selection in allBlendShapeSelections)
                 {
-                    foreach (var selection in enforceBlendshape.blendShapeSelections)
+                    if (selection.blendShapeName.ToLower().Contains(blendShapeSearch.ToLower()))
                     {
                         selection.isSelected = EditorGUILayout.Toggle(selection.blendShapeName, selection.isSelected);
                     }
-                }
-                else
-                {
-                    EditorGUILayout.HelpBox("Blendshapes need to have a weight greater than 0 to appear.", MessageType.Info);
                 }
 
                 // End scroll view for blendshape list
                 EditorGUILayout.EndScrollView();
                 // End sub box for blendshape list
                 EditorGUILayout.EndVertical();
+            }
+
+            if (EditorGUI.EndChangeCheck())
+            {
+                // Register undo and mark the object as dirty when a change occurs
+                Undo.RecordObject(enforceBlendshape, "Modified Blendshape Selection");
+                EditorUtility.SetDirty(enforceBlendshape);
+
+                // Update the blendshape selections list
+                UpdateBlendShapeSelections();
             }
         }
 
@@ -86,41 +100,40 @@ namespace raspichu.vrc_tools.editor
             List<string> blendShapesToRemove = new List<string>();
 
             // Mark blendshapes with value 0 for removal
-            for (int i = 0; i < enforceBlendshape.blendShapeSelections.Count; i++)
+            for (int i = 0; i < allBlendShapeSelections.Count; i++)
             {
-                int blendShapeIndex = mesh.GetBlendShapeIndex(enforceBlendshape.blendShapeSelections[i].blendShapeName);
+                int blendShapeIndex = mesh.GetBlendShapeIndex(allBlendShapeSelections[i].blendShapeName);
                 if (blendShapeIndex >= 0)
                 {
                     float weight = enforceBlendshape.skinnedMeshRenderer.GetBlendShapeWeight(blendShapeIndex);
                     if (weight == 0)
                     {
-                        blendShapesToRemove.Add(enforceBlendshape.blendShapeSelections[i].blendShapeName);
+                        blendShapesToRemove.Add(allBlendShapeSelections[i].blendShapeName);
                     }
                 }
             }
 
-            // Remove blendshapes with value 0 or that doens't exists in the mesh
-            enforceBlendshape.blendShapeSelections.RemoveAll(selection => blendShapesToRemove.Contains(selection.blendShapeName) || mesh.GetBlendShapeIndex(selection.blendShapeName) == -1);
+            // Remove blendshapes with value 0 or that doesn't exist in the mesh
+            allBlendShapeSelections.RemoveAll(selection => blendShapesToRemove.Contains(selection.blendShapeName) || mesh.GetBlendShapeIndex(selection.blendShapeName) == -1);
 
             // Add new blendshapes with value greater than 0
             for (int i = 0; i < mesh.blendShapeCount; i++)
             {
                 string blendShapeName = mesh.GetBlendShapeName(i);
                 float weight = enforceBlendshape.skinnedMeshRenderer.GetBlendShapeWeight(i);
-                if (weight > 0 && !enforceBlendshape.blendShapeSelections.Exists(selection => selection.blendShapeName == blendShapeName))
+                if (weight > 0 && !allBlendShapeSelections.Exists(selection => selection.blendShapeName == blendShapeName))
                 {
-                    enforceBlendshape.blendShapeSelections.Add(new EnforceBlendshape.BlendShapeSelection
+                    allBlendShapeSelections.Add(new EnforceBlendshape.BlendShapeSelection
                     {
                         blendShapeName = blendShapeName,
-                        isSelected = false
+                        isSelected = enforceBlendshape.blendShapeSelections.Exists(selection => selection.blendShapeName == blendShapeName && selection.isSelected)
                     });
                 }
             }
 
-            enforceBlendshape.blendShapeSelections.RemoveAll(selection => !selection.blendShapeName.ToLower().Contains(blendShapeSearch.ToLower()));
-
+            // Apply search filter
+            enforceBlendshape.blendShapeSelections = new List<EnforceBlendshape.BlendShapeSelection>(allBlendShapeSelections
+                .Where(selection => selection.blendShapeName.ToLower().Contains(blendShapeSearch.ToLower())).ToList());
         }
-
-
     }
 }

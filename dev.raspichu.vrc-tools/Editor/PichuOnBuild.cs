@@ -5,34 +5,37 @@ using VRC.SDKBase;
 using VRC.SDKBase.Editor.BuildPipeline;
 
 using raspichu.vrc_tools.component;
+using nadena.dev.ndmf;
 
-namespace raspichu.vrc_tools.editor
+
+[assembly: ExportsPlugin(typeof(PichuOnBuild))]
+
+public class PichuOnBuild : Plugin<PichuOnBuild>
 {
-    internal class PichuOnBuild : IVRCSDKPreprocessAvatarCallback
+    protected override void Configure()
     {
-        public int callbackOrder => -2048;
-
-        public bool OnPreprocessAvatar(GameObject avatarGameObject)
-        {
-            // #### Change colliders ####
-            ChangeColliderReference changeCollider = avatarGameObject.GetComponentInChildren<ChangeColliderReference>();
-
-            if (changeCollider != null)
+        InPhase(BuildPhase.Generating)
+            .BeforePlugin("nadena.dev.modular-avatar")
+            .Run("Do something", ctx =>
             {
-                Debug.Log("Found ChangeColliderReference component on the avatar.");
-                changeCollider.ApplyColliderChanges();
-            }
+                Debug.Log("Doing something before Modular Avatar");
+                GameObject avatarGameObject = ctx.AvatarRootObject;
 
-            // #### Enforce blendshapes ####
-            EnforceBlendshape enforceBlendshape = avatarGameObject.GetComponentInChildren<EnforceBlendshape>();
-            if (enforceBlendshape != null)
-            {
-                Debug.Log("Found EnforceBlendshape component on the avatar.");
-                enforceBlendshape.GenerateSelectedBlendShapes();
-            }
+                // Change colliders
+                ChangeColliderReference changeCollider = avatarGameObject.GetComponentInChildren<ChangeColliderReference>();
+                if (changeCollider != null)
+                {
+                    Debug.Log("Found ChangeColliderReference component on the avatar.");
+                    changeCollider.ApplyColliderChanges();
+                }
 
-
-            return true;
-        }
+                // Enforce blendshapes
+                EnforceBlendshape enforceBlendshape = avatarGameObject.GetComponentInChildren<EnforceBlendshape>();
+                if (enforceBlendshape != null)
+                {
+                    Debug.Log("[PI] Found EnforceBlendshape component on the avatar.");
+                    enforceBlendshape.GenerateSelectedBlendShapes();
+                }
+            });
     }
 }
