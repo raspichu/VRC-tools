@@ -5,6 +5,7 @@ using VRC.SDKBase;
 using VRC.SDKBase.Editor.BuildPipeline;
 
 using raspichu.vrc_tools.component;
+using raspichu.vrc_tools.editor;
 using nadena.dev.ndmf;
 
 

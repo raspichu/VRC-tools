@@ -23,7 +23,20 @@ namespace raspichu.vrc_tools.editor
             return null;
         }
 
+        public static string GetFullPath(this GameObject gameObject)
+        {
+            string path = gameObject.name;
+            Transform current = gameObject.transform;
 
+            // Traverse up the hierarchy
+            while (current.parent != null)
+            {
+                current = current.parent;
+                path = current.name + "/" + path;
+            }
+
+            return path;
+        }
 
     }
 }
