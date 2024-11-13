@@ -43,6 +43,11 @@ The Enforce Blendshape tool ensures that a specified blendshape is consistently 
 1. Add the Enforce Blendshape component to your GameObject.
 2. Select the mesh and the blendshapes that you want to have (Only the ones with >0 weight will show up)
 
+### Path Deleter
+The Path Deleter component allows you to remove relative paths from the avatar after building MA.
+
+1. Add a new component to an object and select `Pichu -> Path Deleter`.
+2. Type the relative path from the root of the avatar of the object you want to delete after building
 
 ## Installation
 1. **VCC Listing**

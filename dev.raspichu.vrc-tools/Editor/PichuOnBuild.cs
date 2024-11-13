@@ -37,5 +37,18 @@ public class PichuOnBuild : Plugin<PichuOnBuild>
                     enforceBlendshape.GenerateSelectedBlendShapes();
                 }
             });
+
+        InPhase(BuildPhase.Transforming)
+            .AfterPlugin("nadena.dev.modular-avatar")
+            .Run("PichuOnBuild_Transforming", ctx=>
+            {
+                GameObject avatarGameObject = ctx.AvatarRootObject;
+                PathDeleter pathDeleter = avatarGameObject.GetComponentInChildren<PathDeleter>();
+                if (pathDeleter != null)
+                {
+                    Debug.Log("[PI] Found PathDeleter component on the avatar.");
+                    pathDeleter.DeletePath(CommonEditor.GetFullPath(avatarGameObject));
+                }
+            });
     }
 }
