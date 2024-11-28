@@ -32,17 +32,11 @@ namespace raspichu.vrc_tools.editor
                 return;
             }
 
-            // Create a copy of the selected object
-            // GameObject newObjectCopy;
-            // if (PrefabUtility.IsPartOfPrefabInstance(selectedObject))
-            // {
-            //     newObjectCopy = (GameObject)PrefabUtility.InstantiatePrefab(PrefabUtility.GetCorrespondingObjectFromSource(selectedObject), selectedObject.transform.parent);
-            // }
-            // else
-            // {
-            // newObjectCopy = Instantiate(selectedObject, selectedObject.transform.parent);
-            // }
-            GameObject newObjectCopy = Instantiate(selectedObject, selectedObject.transform.parent);
+            // Duplicate the object, keeping prefab in case is one
+            EditorWindow.focusedWindow.SendEvent(EditorGUIUtility.CommandEvent("Duplicate"));
+
+            // Get the newly duplicated object (it should be selected automatically)
+            GameObject newObjectCopy = Selection.activeGameObject;
 
             // Set the copy to active
             newObjectCopy.SetActive(true); // Show the copy
@@ -59,8 +53,7 @@ namespace raspichu.vrc_tools.editor
             // Select the copy
             Selection.activeObject = newObjectCopy;
 
-            // Delete the original object
-            // Undo.DestroyObjectImmediate(selectedObject);
+            // Hide the original object
             selectedObject.SetActive(false);
 
             // Remove the unused bones from the copy
@@ -97,6 +90,42 @@ namespace raspichu.vrc_tools.editor
             RemoveUnusedBonesList(gameObject, usedBones);
 
             // ---- Ending the process ---- //
+        }
+
+        private static void CopyOverridesAndHierarchy(GameObject original, GameObject duplicate)
+        {
+            // Copy property modifications
+            PrefabUtility.SetPropertyModifications(duplicate, PrefabUtility.GetPropertyModifications(original));
+
+            // Sync child objects, including deletions
+            for (int i = 0; i < original.transform.childCount; i++)
+            {
+                Transform originalChild = original.transform.GetChild(i);
+                Transform duplicateChild = duplicate.transform.Find(originalChild.name);
+
+                if (duplicateChild == null)
+                {
+                    // If the child is missing, clone it manually
+                    GameObject clonedChild = Object.Instantiate(originalChild.gameObject, duplicate.transform);
+                    clonedChild.name = originalChild.name;
+                    CopyOverridesAndHierarchy(originalChild.gameObject, clonedChild);
+                }
+                else
+                {
+                    // Recursively copy hierarchy and overrides for existing children
+                    CopyOverridesAndHierarchy(originalChild.gameObject, duplicateChild.gameObject);
+                }
+            }
+
+            // Remove extra children in the duplicate that don't exist in the original
+            for (int i = duplicate.transform.childCount - 1; i >= 0; i--)
+            {
+                Transform duplicateChild = duplicate.transform.GetChild(i);
+                if (!original.transform.Find(duplicateChild.name))
+                {
+                    Object.DestroyImmediate(duplicateChild.gameObject);
+                }
+            }
         }
 
 
@@ -161,20 +190,30 @@ namespace raspichu.vrc_tools.editor
         /// <param name="usedBones">The HashSet of used bones.</param>
         private static void AddPhysbonesCollidersToHash(GameObject gameObject, HashSet<Transform> usedBones)
         {
+            Debug.Log("Checking: " + gameObject.name);
             // Add the bones used by the VRCPhysBone colliders and their parents that are already in the set
             VRCPhysBone[] physBones = gameObject.GetComponentsInChildren<VRCPhysBone>();
             HashSet<Transform> usedColliders = new HashSet<Transform>();
             foreach (var physBone in physBones)
             {
-                if (!usedBones.Contains(physBone.transform)) continue;
+                Debug.Log("Checking bone: " + physBone.transform.name);
 
-                // Add the bone and its parents and children
+                if (physBone.rootTransform != null)
+                {
+                    if (!usedBones.Contains(physBone.rootTransform)) continue;
+                    AddBoneToHash(physBone.rootTransform, usedBones, true);
+                } else {
+                    if (!usedBones.Contains(physBone.transform)) continue;
+                }
                 AddBoneToHash(physBone.transform, usedBones, true);
 
                 // Add the colliders bone and its parents
                 foreach (var collider in physBone.colliders)
                 {
                     if (collider == null) continue;
+                    if (collider.rootTransform != null){
+                        AddBoneToHash(collider.rootTransform, usedBones, false);
+                    }
                     AddBoneToHash(collider.transform, usedBones, false);
                     usedColliders.Add(collider.transform);
                 }
