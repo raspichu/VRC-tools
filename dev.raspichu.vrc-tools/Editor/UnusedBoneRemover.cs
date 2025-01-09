@@ -32,32 +32,41 @@ namespace raspichu.vrc_tools.editor
                 return;
             }
 
-            // Duplicate the object, keeping prefab in case is one
+            // Duplicate the object, keeping prefab in case it is one
             EditorWindow.focusedWindow.SendEvent(EditorGUIUtility.CommandEvent("Duplicate"));
 
             // Get the newly duplicated object (it should be selected automatically)
             GameObject newObjectCopy = Selection.activeGameObject;
 
-            // Set the copy to active
-            newObjectCopy.SetActive(true); // Show the copy
+            // Hide the copy
+            newObjectCopy.SetActive(false);
 
-            newObjectCopy.name = selectedObject.name + "_clean";
+            // Rename the duplicate to indicate it is the original
+            newObjectCopy.name = selectedObject.name + "_original";
 
-            // Register undo for the creation of the new object
+            // Register undo for the creation of the duplicate object
             Undo.RegisterCreatedObjectUndo(newObjectCopy, "Create Cleaned Object");
 
             // Get the sibling index of the selected object
             int siblingIndex = selectedObject.transform.GetSiblingIndex();
-            newObjectCopy.transform.SetSiblingIndex(siblingIndex + 1);
 
-            // Select the copy
-            Selection.activeObject = newObjectCopy;
+            // Explicitly record hierarchy changes
+            Transform parentTransform = selectedObject.transform.parent;
+            Undo.RegisterCompleteObjectUndo(parentTransform, "Adjust Sibling Index");
 
-            // Hide the original object
-            selectedObject.SetActive(false);
+            // Set sibling indices to ensure proper order
+            newObjectCopy.transform.SetSiblingIndex(siblingIndex);
+            selectedObject.transform.SetSiblingIndex(siblingIndex + 1);
 
-            // Remove the unused bones from the copy
-            RemoveUnusedBonesFromObject(newObjectCopy);
+            // Save Undo for changes to the selected object
+            Undo.RecordObject(selectedObject, "Remove Unused Bones");
+
+            // Show the cleaned object and rename it
+            selectedObject.SetActive(true);
+            selectedObject.name = selectedObject.name + "_cleaned";
+
+            // Perform the operation to remove unused bones
+            RemoveUnusedBonesFromObject(selectedObject);
         }
 
 
@@ -246,7 +255,7 @@ namespace raspichu.vrc_tools.editor
                 if (!usedBones.Contains(child))
                 {
                     Debug.Log("Removing bone: " + child.name);
-                    DestroyImmediate(child.gameObject);
+                    Undo.DestroyObjectImmediate(child.gameObject);
                 }
                 else
                 {
