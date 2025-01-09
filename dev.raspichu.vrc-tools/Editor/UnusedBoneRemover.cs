@@ -64,6 +64,7 @@ namespace raspichu.vrc_tools.editor
             // Show the cleaned object and rename it
             selectedObject.SetActive(true);
             selectedObject.name = selectedObject.name + "_cleaned";
+            Selection.activeObject = selectedObject;
 
             // Perform the operation to remove unused bones
             RemoveUnusedBonesFromObject(selectedObject);
