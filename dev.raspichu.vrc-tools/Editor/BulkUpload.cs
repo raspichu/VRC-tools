@@ -34,6 +34,8 @@ namespace raspichu.vrc_tools.editor
         private Dictionary<string, string> avatarErrorMessages = new Dictionary<string, string>();
         private Vector2 scrollPosition; // Scroll position for the scroll view
 
+        private VRCAvatarDescriptor[] fixedAvatarsDescriptor;
+
         private bool isBuilderPresent = true;
 
         private bool isAvatarUploading = false;
@@ -140,6 +142,11 @@ namespace raspichu.vrc_tools.editor
 
         private VRCAvatarDescriptor[] GetAvatarDescriptorList()
         {
+
+            if (isAvatarUploadingAll){
+                return fixedAvatarsDescriptor;
+            }
+
             VRCAvatarDescriptor[] avatarsDescriptor = FindObjectsOfType<VRCAvatarDescriptor>();
 
             // Filter the results to only include objects that are active and not have a ignore tag (Is created by the Utils.UnityBuild process)
@@ -271,21 +278,44 @@ namespace raspichu.vrc_tools.editor
 
         private async void UploadAllAvatars()
         {
+
+            fixedAvatarsDescriptor = GetAvatarDescriptorList();
+
             isAvatarUploading = true;
             isAvatarUploadingAll = true;
             foreach (var avatar in GetAvatarDescriptorList())
             {
                 SetAvatarStatus(avatar.gameObject.name, AvatarUploadStatus.Waiting);
             }
-            foreach (var avatar in GetAvatarDescriptorList())
+            foreach (var avatar in fixedAvatarsDescriptor)
             {
+                // Disable every avatar except the current one, this helps performance on uploading on some cases
+                foreach (var otherAvatar in fixedAvatarsDescriptor)
+                {
+                    if (otherAvatar != avatar)
+                    {
+                        otherAvatar.gameObject.SetActive(false);
+                    }
+                }
+                avatar.gameObject.SetActive(true);
+
+
                 SetAvatarStatus(avatar.gameObject.name, AvatarUploadStatus.Building);
                 await UploadAvatar(avatar);
+                // Wait a short delay
+                await Task.Delay(1000);
+
                 if (isAvatarUploadingCancelled)
                 {
                     break;
                 }
             }
+            // Enable all avatars
+            foreach (var avatar in fixedAvatarsDescriptor)
+            {
+                avatar.gameObject.SetActive(true);
+            }
+
             isAvatarUploading = false;
             isAvatarUploadingAll = false;
             Debug.Log("All avatars uploaded");
