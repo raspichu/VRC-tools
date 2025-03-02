@@ -168,7 +168,8 @@ namespace raspichu.vrc_tools.editor
         {
             avatarStatuses.Clear();
             avatarErrorMessages.Clear();
-            foreach (var avatar in GetAvatarDescriptorList())
+            VRCAvatarDescriptor[] avatarsDescriptor = GetAvatarDescriptorList();
+            foreach (var avatar in avatarsDescriptor)
             {
                 avatarStatuses.Add(avatar.gameObject.name, AvatarUploadStatus.Ready);
             }
@@ -283,7 +284,7 @@ namespace raspichu.vrc_tools.editor
 
             isAvatarUploading = true;
             isAvatarUploadingAll = true;
-            foreach (var avatar in GetAvatarDescriptorList())
+            foreach (var avatar in fixedAvatarsDescriptor)
             {
                 SetAvatarStatus(avatar.gameObject.name, AvatarUploadStatus.Waiting);
             }
