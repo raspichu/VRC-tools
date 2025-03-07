@@ -22,6 +22,9 @@ namespace raspichu.vrc_tools.component
         public Transform rightPinky;
         public Transform rightHand;
 
+        public Transform Head;
+        public Transform Torso;
+
         // Checkbox states
         public bool changeLeftIndex = false;
         public bool changeLeftMiddle = false;
@@ -35,6 +38,8 @@ namespace raspichu.vrc_tools.component
         public bool changeRightPinky = false;
         public bool changeRightHand = false;
 
+        public bool changeHead = false;
+        public bool changeTorso = false;
 
         public void ApplyColliderChanges()
         {
@@ -115,6 +120,22 @@ namespace raspichu.vrc_tools.component
                 avatarDescriptor.collider_handR.state = VRCAvatarDescriptor.ColliderConfig.State.Custom;
                 avatarDescriptor.collider_handR.isMirrored = false;
                 avatarDescriptor.collider_handR.position = Vector3.zero;
+            }
+
+            if (changeHead)
+            {
+                avatarDescriptor.collider_head.transform = Head;
+                avatarDescriptor.collider_head.state = VRCAvatarDescriptor.ColliderConfig.State.Custom;
+                avatarDescriptor.collider_head.isMirrored = false;
+                avatarDescriptor.collider_head.position = Vector3.zero;
+            }
+
+            if (changeTorso)
+            {
+                avatarDescriptor.collider_torso.transform = Torso;
+                avatarDescriptor.collider_torso.state = VRCAvatarDescriptor.ColliderConfig.State.Custom;
+                avatarDescriptor.collider_torso.isMirrored = false;
+                avatarDescriptor.collider_torso.position = Vector3.zero;
             }
         }
 

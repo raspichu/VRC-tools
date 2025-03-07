@@ -26,6 +26,9 @@ namespace raspichu.vrc_tools.editor
         private SerializedProperty changeRightPinkyProp;
         private SerializedProperty changeRightHandProp;
 
+        private SerializedProperty changeHeadProp;
+        private SerializedProperty changeTorsoProp;
+
 
         // References to the transforms for each finger and hand
         private SerializedProperty leftIndexProp;
@@ -39,6 +42,9 @@ namespace raspichu.vrc_tools.editor
         private SerializedProperty rightRingProp;
         private SerializedProperty rightPinkyProp;
         private SerializedProperty rightHandProp;
+
+        private SerializedProperty headProp;
+        private SerializedProperty torsoProp;
 
         void OnEnable()
         {
@@ -62,6 +68,9 @@ namespace raspichu.vrc_tools.editor
             changeRightPinkyProp = serializedObject.FindProperty("changeRightPinky");
             changeRightHandProp = serializedObject.FindProperty("changeRightHand");
 
+            changeHeadProp = serializedObject.FindProperty("changeHead");
+            changeTorsoProp = serializedObject.FindProperty("changeTorso");
+
             // Initialize transform properties
             leftIndexProp = serializedObject.FindProperty("leftIndex");
             leftMiddleProp = serializedObject.FindProperty("leftMiddle");
@@ -74,6 +83,9 @@ namespace raspichu.vrc_tools.editor
             rightRingProp = serializedObject.FindProperty("rightRing");
             rightPinkyProp = serializedObject.FindProperty("rightPinky");
             rightHandProp = serializedObject.FindProperty("rightHand");
+
+            headProp = serializedObject.FindProperty("Head");
+            torsoProp = serializedObject.FindProperty("Torso");
 
             FindAndSetProperties();
 
@@ -132,6 +144,19 @@ namespace raspichu.vrc_tools.editor
             if (changeRightPinkyProp.boolValue)
                 EditorGUILayout.PropertyField(rightPinkyProp);
 
+            EditorGUILayout.Space();
+
+            EditorGUILayout.LabelField("Head", EditorStyles.boldLabel);
+            changeHeadProp.boolValue = EditorGUILayout.Toggle("Head", changeHeadProp.boolValue);
+            if (changeHeadProp.boolValue)
+                EditorGUILayout.PropertyField(headProp);
+
+            EditorGUILayout.LabelField("Torso", EditorStyles.boldLabel);
+            changeTorsoProp.boolValue = EditorGUILayout.Toggle("Torso", changeTorsoProp.boolValue);
+            if (changeTorsoProp.boolValue)
+                EditorGUILayout.PropertyField(torsoProp);
+
+
 
             serializedObject.ApplyModifiedProperties();
         }
@@ -160,6 +185,9 @@ namespace raspichu.vrc_tools.editor
             if (!rightRingProp.objectReferenceValue) rightRingProp.objectReferenceValue = avatarDescriptor.collider_fingerRingR.transform;
             if (!rightPinkyProp.objectReferenceValue) rightPinkyProp.objectReferenceValue = avatarDescriptor.collider_fingerLittleL.transform;
             if (!rightHandProp.objectReferenceValue) rightHandProp.objectReferenceValue = avatarDescriptor.collider_handR.transform;
+
+            if (!headProp.objectReferenceValue) headProp.objectReferenceValue = avatarDescriptor.collider_head.transform;
+            if (!torsoProp.objectReferenceValue) torsoProp.objectReferenceValue = avatarDescriptor.collider_torso.transform;
 
             // Apply modified properties to update changes
             serializedObject.ApplyModifiedProperties();

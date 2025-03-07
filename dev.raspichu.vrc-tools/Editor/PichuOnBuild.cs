@@ -23,19 +23,25 @@ public class PichuOnBuild : Plugin<PichuOnBuild>
                 GameObject avatarGameObject = ctx.AvatarRootObject;
 
                 // Change colliders
-                ChangeColliderReference changeCollider = avatarGameObject.GetComponentInChildren<ChangeColliderReference>();
-                if (changeCollider != null)
+                ChangeColliderReference[] changeColliders = avatarGameObject.GetComponentsInChildren<ChangeColliderReference>();
+                if (changeColliders.Length > 0)
                 {
-                    Debug.Log("Found ChangeColliderReference component on the avatar.");
-                    changeCollider.ApplyColliderChanges();
+                    Debug.Log($"Found {changeColliders.Length} ChangeColliderReference components on the avatar.");
+                    foreach (var changeCollider in changeColliders)
+                    {
+                        changeCollider.ApplyColliderChanges();
+                    }
                 }
 
                 // Enforce blendshapes
-                EnforceBlendshape enforceBlendshape = avatarGameObject.GetComponentInChildren<EnforceBlendshape>();
-                if (enforceBlendshape != null)
+                EnforceBlendshape[] enforceBlendshapes = avatarGameObject.GetComponentsInChildren<EnforceBlendshape>();
+                if (enforceBlendshapes.Length > 0)
                 {
-                    Debug.Log("[PI] Found EnforceBlendshape component on the avatar.");
-                    enforceBlendshape.GenerateSelectedBlendShapes();
+                    Debug.Log($"[PI] Found {enforceBlendshapes.Length} EnforceBlendshape components on the avatar.");
+                    foreach (var enforceBlendshape in enforceBlendshapes)
+                    {
+                        enforceBlendshape.GenerateSelectedBlendShapes();
+                    }
                 }
             });
 
@@ -44,11 +50,15 @@ public class PichuOnBuild : Plugin<PichuOnBuild>
             .Run("PichuOnBuild_Transforming", ctx=>
             {
                 GameObject avatarGameObject = ctx.AvatarRootObject;
-                PathDeleter pathDeleter = avatarGameObject.GetComponentInChildren<PathDeleter>();
-                if (pathDeleter != null)
+                PathDeleter[] pathDeleters = avatarGameObject.GetComponentsInChildren<PathDeleter>();
+                if (pathDeleters.Length > 0)
                 {
-                    Debug.Log("[PI] Found PathDeleter component on the avatar.");
-                    pathDeleter.DeletePath(CommonEditor.GetFullPath(avatarGameObject));
+                    Debug.Log($"[PI] Found {pathDeleters.Length} PathDeleter components on the avatar.");
+                    string fullPath = CommonEditor.GetFullPath(avatarGameObject);
+                    foreach (var pathDeleter in pathDeleters)
+                    {
+                        pathDeleter.DeletePath(fullPath);
+                    }
                 }
             });
     }
