@@ -51,8 +51,8 @@ namespace raspichu.vrc_tools.component
                 // Remove the path from the list
                 pathStrings.RemoveAt(i);
             }
-            // Delte self object
-            DestroyImmediate(this.gameObject);
+            // Delte self component
+            DestroyImmediate(this);
         }
     }
 }

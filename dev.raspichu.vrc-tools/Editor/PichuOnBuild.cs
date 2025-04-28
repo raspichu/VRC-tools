@@ -17,7 +17,29 @@ public class PichuOnBuild : Plugin<PichuOnBuild>
     {
         InPhase(BuildPhase.Generating)
             .BeforePlugin("nadena.dev.modular-avatar")
-            .Run("Do something", ctx =>
+            .BeforePlugin("Goorm.SeeThroughHair.NDMFPlugin")
+            .BeforePlugin("com.anatawa12.avatar-optimizer")
+            .BeforePlugin("ShellProtectorNDMFPlugin")
+            .Run("PichuOnBuild_Generating1", ctx =>
+            {
+                // Run ComponentRemoverPlayMode
+                GameObject avatarRoot = ctx.AvatarRootObject;
+                var removers = avatarRoot.GetComponentsInChildren<ComponentRemoverPlayMode>(true);
+                if (removers.Length > 0)
+                {
+                    Debug.Log($"[PI] Found {removers.Length} ComponentRemoverPlayMode components on the avatar.");
+                    foreach (var remover in removers)
+                    {
+                        remover.RemoveObjects();
+                    }
+                }
+            });
+
+
+        InPhase(BuildPhase.Generating)
+            .BeforePlugin("nadena.dev.modular-avatar")
+            
+            .Run("PichuOnBuild_Generating2", ctx =>
             {
                 Debug.Log("Doing something before Modular Avatar");
                 GameObject avatarGameObject = ctx.AvatarRootObject;

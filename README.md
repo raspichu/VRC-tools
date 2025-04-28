@@ -57,6 +57,17 @@ This tool toggles the active state and tag of selected GameObjects. It remembers
 2. Navigate to `Tools -> Pichu -> Disable and Set Editor-Only` or press the shortcut `Shift + A`.
 3. The script will disable the GameObjects and set their tag to `EditorOnly`. When toggled back, it will restore the original tag and active state.
 
+### Component Remover (Play Mode Only)
+
+This tool allows you to remove specific components or GameObjects from your avatar during Play Mode, while keeping them intact in Build Mode. It's ideal for cleaning up unnecessary components or testing without permanently removing anything.
+
+1. Add a new component to an object and select `Pichu -> Component Remover Play Mode`.
+2. Drag and drop the components or GameObjects you want to remove during Play Mode into the list.
+3. When you enter Play Mode, the specified components or GameObjects will be automatically removed.
+4. The components or GameObjects won't be deleted when building the avatar.
+
+**Note:** The tool provides a warning if you attempt to add a `Transform` component to the list.
+
 ## Installation
 1. **VCC Listing**
    - Go to [My VRChat Creator Companion listing](https://raspichu.github.io/vpm-listing/)
