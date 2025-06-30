@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
+using System;
 
 // VRC SDK
 using VRC.Core;
@@ -32,6 +33,8 @@ namespace raspichu.vrc_tools.editor
 
         private Dictionary<string, AvatarUploadStatus> avatarStatuses = new Dictionary<string, AvatarUploadStatus>();
         private Dictionary<string, string> avatarErrorMessages = new Dictionary<string, string>();
+        // Avatar upload dates
+        private Dictionary<string, DateTime> avatarDates = new Dictionary<string, DateTime>();
         private Vector2 scrollPosition; // Scroll position for the scroll view
 
         private VRCAvatarDescriptor[] fixedAvatarsDescriptor;
@@ -168,10 +171,12 @@ namespace raspichu.vrc_tools.editor
         {
             avatarStatuses.Clear();
             avatarErrorMessages.Clear();
+            avatarDates.Clear();
             VRCAvatarDescriptor[] avatarsDescriptor = GetAvatarDescriptorList();
             foreach (var avatar in avatarsDescriptor)
             {
-                avatarStatuses.Add(avatar.gameObject.name, AvatarUploadStatus.Ready);
+                // avatarStatuses.Add(avatar.gameObject.name, AvatarUploadStatus.Ready);
+                SetAvatarStatus(avatar.gameObject.name, AvatarUploadStatus.Ready);
             }
         }
 
@@ -181,6 +186,10 @@ namespace raspichu.vrc_tools.editor
             {
                 avatarStatuses.Add(avatarName, AvatarUploadStatus.Ready);
             }
+
+            // Avatar date, if exists, else null
+            DateTime date = avatarDates.ContainsKey(avatarName) ? avatarDates[avatarName] : DateTime.MinValue;
+
             AvatarUploadStatus status = avatarStatuses[avatarName];
             switch (status)
             {
@@ -194,27 +203,27 @@ namespace raspichu.vrc_tools.editor
                     break;
                 case AvatarUploadStatus.Building:
                     GUI.contentColor = new Color(0.53f, 0.81f, 0.98f, 1); // Sky Blue
-                    GUILayout.Label($"[Building] {avatarName}");
+                    GUILayout.Label($"[Building] {avatarName} ({date:HH:mm:ss})");
                     break;
                 case AvatarUploadStatus.Uploading:
                     GUI.contentColor = new Color(0.53f, 0.81f, 0.98f, 1); // Sky Blue
-                    GUILayout.Label($"[Uploading] {avatarName}");
+                    GUILayout.Label($"[Uploading] {avatarName} ({date:HH:mm:ss})");
                     break;
                 case AvatarUploadStatus.Uploaded:
                     GUI.contentColor = new Color(0.31f, 0.85f, 0.4f, 1); // Greenish
-                    GUILayout.Label($"[Uploaded] {avatarName}");
+                    GUILayout.Label($"[Uploaded] {avatarName} ({date:HH:mm:ss})");
                     break;
                 case AvatarUploadStatus.Failed:
                     GUI.contentColor = new Color(1, 0, 0, 1); // Red
-                    GUILayout.Label($"[Failed] {avatarName}");
+                    GUILayout.Label($"[Failed] {avatarName} ({date:HH:mm:ss})");
                     break;
                 case AvatarUploadStatus.Cancelled:
                     GUI.contentColor = new Color(1, 0, 0, 1); // Red
-                    GUILayout.Label($"[Cancelled] {avatarName}");
+                    GUILayout.Label($"[Cancelled] {avatarName} ({date:HH:mm:ss})");
                     break;
                 default:
                     GUI.contentColor = new Color(0.77f, 0.76f, 0.82f, 1); // Lavender
-                    GUILayout.Label($"[Unknown] {avatarName}");
+                    GUILayout.Label($"[Unknown] {avatarName} ({date:HH:mm:ss})");
                     break;
             }
 
@@ -333,6 +342,7 @@ namespace raspichu.vrc_tools.editor
             {
                 avatarStatuses.Add(avatarName, status);
             }
+            avatarDates[avatarName] = DateTime.Now; // Update the date to now
         }
 
         private void DrawUILine(Color color, int thickness = 1, int padding = 10)
