@@ -13,8 +13,8 @@ This tool is designed to remove unused bones from GameObjects containing Skinned
 The script generates a clean copy of the GameObject with only the necessary bones.
 
 1. Select a GameObject in your Scene or Hierarchy that you want to clean up.
-2. Right-click on the GameObject in the Hierarchy tab and select `Unused Bone Remover`.
-   - Alternatively, you can execute the script by navigating to `Tools -> Unused Bone Remover`.
+2. Right-click on the GameObject in the Hierarchy tab and select `Pichu -> Unused Bone Remover`.
+   - Alternatively, you can execute the script by navigating to `Tools -> Pichu -> Unused Bone Remover`.
 
 ### Parameters to MA parameters
 
@@ -67,6 +67,13 @@ This tool allows you to remove specific components or GameObjects from your avat
 4. The components or GameObjects won't be deleted when building the avatar.
 
 **Note:** The tool provides a warning if you attempt to add a `Transform` component to the list.
+
+### Material replacer
+
+This tool allows you to easily replace all the materials that are inside of a GameObject.
+1. Right-click on a GameObject and select `Pichu -> Material replacer`
+   - Alternatively, open the window via `Window -> Pichu -> Unused Bone Remover`.
+2. Select the new material and choose which materials from the list you want to replace.
 
 ## Installation
 1. **VCC Listing**

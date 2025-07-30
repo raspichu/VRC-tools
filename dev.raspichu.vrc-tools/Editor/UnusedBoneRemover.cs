@@ -7,13 +7,13 @@ namespace raspichu.vrc_tools.editor
 {
     public class UnusedBoneRemover : Editor
     {
-        [MenuItem("Tools/Unused Bone Remover")]
+        [MenuItem("Tools/Pichu/Unused Bone Remover")]
         public static void RemoveUnusedBonesMenu()
         {
             RemoveSelectedUnusedBones();
         }
 
-        [MenuItem("GameObject/Unused Bone Remover", false, 0)]
+        [MenuItem("GameObject/Pichu/Unused Bone Remover", false, 0)]
         public static void RemoveUnusedBonesHierarchy()
         {
             RemoveSelectedUnusedBones();
