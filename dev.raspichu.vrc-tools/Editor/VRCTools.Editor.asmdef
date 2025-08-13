@@ -36,7 +36,7 @@
         {
             "name": "com.vrchat.base",
             "expression": "3.8.0",
-            "define": "SDK_3_8_0"
+            "define": "VRC_SDK3_3_8"
         }
     ],
     "noEngineReferences": false

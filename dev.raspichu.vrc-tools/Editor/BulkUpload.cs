@@ -293,7 +293,8 @@ namespace raspichu.vrc_tools.editor
 
         private static async Task VRCSDKCopyrightAgreement(string blueprint)
         {
-#if VRC_SDK3_1_8
+#if VRC_SDK3_3_8
+            Debug.Log($"Checking copyright agreement for blueprint: {blueprint}");
             const string key = "VRCSdkControlPanel.CopyrightAgreement.ContentList";
             var keyText = SessionState.GetString(key, string.Empty);
             var list = string.IsNullOrWhiteSpace(keyText)
@@ -315,6 +316,9 @@ namespace raspichu.vrc_tools.editor
                 ContentId = blueprint,
                 Version = 1,
             });
+#else
+            Debug.Log("VRC SDK 3.8 or higher is required for copyright agreement handling.");
+            return;
 #endif
         }
 
