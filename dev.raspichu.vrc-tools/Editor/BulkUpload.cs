@@ -268,6 +268,8 @@ namespace raspichu.vrc_tools.editor
 
                 SetAvatarStatus(avatarName, AvatarUploadStatus.Uploading);
                 VRCSdkControlPanel.TryGetBuilder<IVRCSdkAvatarBuilderApi>(out var builder);
+
+                await VRCSDKCopyrightAgreement(avatarId);
                 await builder.BuildAndUpload(avatarObject, vrcAvatar, cancellationToken: BuildAndUploadCancellationToken.Token);
 
                 SetAvatarStatus(avatarName, AvatarUploadStatus.Uploaded);
@@ -284,6 +286,36 @@ namespace raspichu.vrc_tools.editor
         private bool IsBuilderPresent()
         {
             return VRCSdkControlPanel.TryGetBuilder<IVRCSdkAvatarBuilderApi>(out var builder);
+        }
+
+       public static string AgreementText =
+            "By clicking OK, I certify that I have the necessary rights to upload this content and that it will not infringe on any third-party legal or intellectual property rights.";
+
+        private static async Task VRCSDKCopyrightAgreement(string blueprint)
+        {
+#if VRC_SDK3_1_8
+            const string key = "VRCSdkControlPanel.CopyrightAgreement.ContentList";
+            var keyText = SessionState.GetString(key, string.Empty);
+            var list = string.IsNullOrWhiteSpace(keyText)
+                ? new List<string>()
+                : keyText.Split(';').ToList();
+            
+            // Leave early
+            if (list.Contains(blueprint)) return;
+
+            // Add blueprint to the list
+            list.Add(blueprint);
+
+            SessionState.SetString(key, string.Join(";", list));
+
+            await VRCApi.ContentUploadConsent(new VRCAgreement
+            {
+                AgreementCode = "content.copyright.owned",
+                AgreementFulltext = AgreementText,
+                ContentId = blueprint,
+                Version = 1,
+            });
+#endif
         }
 
         private async void UploadAllAvatars()
