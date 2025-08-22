@@ -75,6 +75,16 @@ This tool allows you to easily replace all the materials that are inside of a Ga
    - Alternatively, open the window via `Window -> Pichu -> Unused Bone Remover`.
 2. Select the new material and choose which materials from the list you want to replace.
 
+### Invert Texture
+
+This tool allows you to easily invert one or multiple textures (black becomes white, white becomes black), which is especially useful for masks.
+
+1. Right-click on one or more textures in the **Project window** and select `Pichu -> Invert Texture`
+The tool will automatically create a new texture for each selected texture in the same folder, with `_inverted` appended to the filename.
+
+
+
+
 ## Installation
 1. **VCC Listing**
    - Go to [My VRChat Creator Companion listing](https://raspichu.github.io/vpm-listing/)
