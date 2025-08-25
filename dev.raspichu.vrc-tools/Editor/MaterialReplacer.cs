@@ -7,7 +7,7 @@ namespace raspichu.vrc_tools.editor
 {
     public class MaterialReplacerWindow : EditorWindow
     {
-        private GameObject targetObject;
+        private List<GameObject> targetObjects = new List<GameObject>();
 
         // Tracks all usages of each material
         private Dictionary<Material, List<MaterialUsage>> materialUsages = new Dictionary<Material, List<MaterialUsage>>();
@@ -16,6 +16,19 @@ namespace raspichu.vrc_tools.editor
         private Dictionary<Material, Material> materialMap = new Dictionary<Material, Material>();
 
         private Vector2 scroll;
+
+        private GUIStyle headerStyle;       
+        private GUIStyle assetStyle;
+        private GUIStyle buttonStyle;
+
+        SerializedObject so;
+        SerializedProperty targetsProp;
+
+        private void OnEnable()
+        {
+            so = new SerializedObject(this);
+            targetsProp = so.FindProperty("targetObjects");
+        }
 
         private class MaterialUsage
         {
@@ -27,21 +40,26 @@ namespace raspichu.vrc_tools.editor
         [MenuItem("Window/Pichu/Material replacer")]
         private static void OpenWindowFromTopMenu()
         {
-            var selected = Selection.activeGameObject;
+            var selected = Selection.gameObjects.ToList();
             ShowWindow(selected);
         }
 
         [MenuItem("GameObject/Pichu/Material replacer", false, 0)]
         private static void OpenWindowFromContext(MenuCommand command)
         {
-            var selected = command.context as GameObject;
+            // var selected = new List<GameObject> { command.context as GameObject };
+            var selected = Selection.gameObjects.ToList();
+            if (selected.Count == 0 && command.context is GameObject go)
+            {
+                selected.Add(go);
+            }
             ShowWindow(selected);
         }
 
-        private static void ShowWindow(GameObject obj)
+        private static void ShowWindow(List<GameObject> objs)
         {
             var window = MaterialReplacerWindow.GetWindow<MaterialReplacerWindow>("Material Replacer");
-            window.targetObject = obj;
+            window.targetObjects = objs;
             window.FindMaterials();
         }
 
@@ -50,40 +68,115 @@ namespace raspichu.vrc_tools.editor
             materialUsages.Clear();
             materialMap.Clear();
 
-            var renderers = targetObject.GetComponentsInChildren<SkinnedMeshRenderer>();
-
-            foreach (var renderer in renderers)
+            foreach (var obj in targetObjects)
             {
-                var mats = renderer.sharedMaterials;
-                for (int i = 0; i < mats.Length; i++)
+                if (obj == null) continue;
+
+                var renderers = obj.GetComponentsInChildren<SkinnedMeshRenderer>();
+                foreach (var renderer in renderers)
                 {
-                    var mat = mats[i];
-                    if (mat == null) continue;
-
-                    if (!materialUsages.ContainsKey(mat))
+                    var mats = renderer.sharedMaterials;
+                    for (int i = 0; i < mats.Length; i++)
                     {
-                        materialUsages[mat] = new List<MaterialUsage>();
-                        materialMap[mat] = null;
+                        var mat = mats[i];
+                        if (mat == null) continue;
+
+                        if (!materialUsages.ContainsKey(mat))
+                        {
+                            materialUsages[mat] = new List<MaterialUsage>();
+                            materialMap[mat] = null;
+                        }
+
+                        materialUsages[mat].Add(new MaterialUsage
+                        {
+                            renderer = renderer,
+                            index = i,
+                            originalMaterial = mat
+                        });
                     }
-
-                    materialUsages[mat].Add(new MaterialUsage
-                    {
-                        renderer = renderer,
-                        index = i,
-                        originalMaterial = mat
-                    });
                 }
             }
         }
 
+        private void EnsureStyles()
+        {
+            if (headerStyle == null)
+                headerStyle = new GUIStyle(EditorStyles.boldLabel) { fontSize = 14, richText = true };
+            if (assetStyle == null)
+                assetStyle = new GUIStyle(EditorStyles.label) { wordWrap = true };
+            if (buttonStyle == null)
+                buttonStyle = new GUIStyle(GUI.skin.button) { fontStyle = FontStyle.Bold };
+        }
+
         private void OnGUI()
         {
-            GameObject newTarget = (GameObject)EditorGUILayout.ObjectField("Target", targetObject, typeof(GameObject), true);
-            if (newTarget != targetObject)
+            Event evt = Event.current;
+
+            EnsureStyles();
+
+            Rect dropArea = EditorGUILayout.GetControlRect(false, 20, GUILayout.ExpandWidth(true));
+            GUI.Label(dropArea, "Targets <size=10>(drag and drop)</size>", headerStyle);
+
+            if ((evt.type == EventType.DragUpdated || evt.type == EventType.DragPerform) && dropArea.Contains(evt.mousePosition))
             {
-                targetObject = newTarget;
-                FindMaterials(); // Refresh the materials for the new object
+                DragAndDrop.visualMode = DragAndDropVisualMode.Copy;
+
+                if (evt.type == EventType.DragPerform)
+                {
+                    DragAndDrop.AcceptDrag();
+                    // Empty targets
+                    targetObjects = new List<GameObject>();
+                    foreach (Object dragged in DragAndDrop.objectReferences)
+                    {
+                        GameObject go = dragged as GameObject;
+                        targetObjects.Add(go);
+                    }
+                    FindMaterials();
+                }
+                evt.Use();
             }
+
+            int removeIndex = -1;
+            bool changed = false;
+
+            for (int i = 0; i < targetObjects.Count; i++)
+            {
+                EditorGUILayout.BeginHorizontal();
+
+                GameObject newTarget = (GameObject)EditorGUILayout.ObjectField(targetObjects[i], typeof(GameObject), true);
+                if (newTarget != targetObjects[i])
+                {
+                    targetObjects[i] = newTarget;
+                    changed = true;
+                }
+
+                if (i == targetObjects.Count - 1)
+                {
+                    if (GUILayout.Button("+", GUILayout.Width(30)))
+                    {
+                        targetObjects.Add(null);
+                        changed = true;
+                    }
+                }
+
+                if (GUILayout.Button("X", GUILayout.Width(20)))
+                {
+                    removeIndex = i;
+                    changed = true;
+                }
+
+                EditorGUILayout.EndHorizontal();
+            }
+
+            if (removeIndex >= 0)
+                targetObjects.RemoveAt(removeIndex);
+
+            if (changed)
+                FindMaterials(); // Reload if something changes
+
+            if (GUILayout.Button("Refresh Materials"))
+                FindMaterials();
+
             EditorGUILayout.Space();
 
             scroll = EditorGUILayout.BeginScrollView(scroll);

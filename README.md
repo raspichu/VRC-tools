@@ -82,6 +82,15 @@ This tool allows you to easily invert one or multiple textures (black becomes wh
 1. Right-click on one or more textures in the **Project window** and select `Pichu -> Invert Texture`
 The tool will automatically create a new texture for each selected texture in the same folder, with `_inverted` appended to the filename.
 
+### UnityPackage Auto Sorter
+
+This tool automatically opens a window after importing a `.unitypackage`, allowing you to sort the imported assets into a chosen category while preserving their internal folder structure.
+*(This tool disabled by default, Enable it by going to `Tools -> Pichu -> Enable Sort Imported Package`)*
+
+1. Import a `.unitypackage` by double-clicking it or via `Assets -> Import Package -> Custom Package`.
+2. After the import completes, the **Package Sorter** window will appear automatically.
+3. Select a category (`Clothes`, `Models`, `Other`) for the imported assets.
+4. Press **Sort**. Only the assets from the imported package will be moved, preserving folder structure.
 
 
 
