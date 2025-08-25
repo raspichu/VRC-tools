@@ -251,11 +251,10 @@ namespace raspichu.vrc_tools.editor
             EditorPrefs.SetBool(PrefKey, !current);
         }
 
-        // Esto hace que aparezca un checkmark en el menú si está activo
         [MenuItem("Tools/Pichu/Enable Sort Imported Package", true)]
         private static bool ToggleSortPackageValidate()
         {
-            bool enabled = EditorPrefs.GetBool(PrefKey, true);
+            bool enabled = EditorPrefs.GetBool(PrefKey, false);
             Menu.SetChecked("Tools/Pichu/Enable Sort Imported Package", enabled);
             return true;
         }
