@@ -59,8 +59,8 @@ namespace raspichu.vrc_tools.editor
     public class PackageSorterWindow : EditorWindow
     {
         private string packageName;
-        private string selectedCategory = "__Clothes__";
-        private string[] categories = new string[] { "__Clothes__", "__Models__", "__Shaders__", "__Scripts__", "__Hair__", "__Other__" };
+        private string selectedCategory = "Clothes";
+        private string[] categories = new string[] { "Clothes", "Models", "Shaders", "Scripts", "Hair", "Other" };
 
         private string[] importedAssets;
 
@@ -101,12 +101,15 @@ namespace raspichu.vrc_tools.editor
             EditorGUILayout.LabelField("Package Imported:", packageName, headerStyle);
             EditorGUILayout.Space();
 
+            // adds _ at the start and end __{selectedCategory}__
+
             // Target Folder
             int selectedIndex = System.Array.IndexOf(categories, selectedCategory);
             selectedIndex = EditorGUILayout.Popup("Target Folder", selectedIndex, categories);
             selectedCategory = categories[selectedIndex];
 
-            string previewPath = Path.Combine("Assets", selectedCategory, packageName);
+            string selectedCategoryParsed = $"__{selectedCategory}__";
+            string previewPath = Path.Combine("Assets", selectedCategoryParsed, packageName);
             EditorGUILayout.LabelField("Destination:", previewPath, EditorStyles.helpBox);
 
             EditorGUILayout.Space();
@@ -147,7 +150,8 @@ namespace raspichu.vrc_tools.editor
         {
             if (importedAssets == null || importedAssets.Length == 0) return;
 
-            string rootFolder = Path.Combine("Assets", selectedCategory, packageName);
+            string selectedCategoryParsed = $"__{selectedCategory}__";
+            string rootFolder = Path.Combine("Assets", selectedCategoryParsed, packageName);
 
             // Create folder if it doesn't exist
             if (!AssetDatabase.IsValidFolder(rootFolder))
@@ -198,7 +202,7 @@ namespace raspichu.vrc_tools.editor
                         relativePath = ""; // Only root folder
                 }
 
-                string newPath = Path.Combine("Assets", selectedCategory, packageName, relativePath)
+                string newPath = Path.Combine("Assets", selectedCategoryParsed, packageName, relativePath)
                                     .Replace("\\", "/");
 
                 // Create necessary folders
