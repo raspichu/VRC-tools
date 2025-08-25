@@ -59,8 +59,8 @@ namespace raspichu.vrc_tools.editor
     public class PackageSorterWindow : EditorWindow
     {
         private string packageName;
-        private string selectedCategory = "Models";
-        private string[] categories = new string[] { "Clothes", "Models", "Other" };
+        private string selectedCategory = "__Clothes__";
+        private string[] categories = new string[] { "__Clothes__", "__Models__", "__Shaders__", "__Scripts__", "__Hair__", "__Other__" };
 
         private string[] importedAssets;
 
