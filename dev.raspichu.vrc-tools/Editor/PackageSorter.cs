@@ -376,6 +376,9 @@ namespace raspichu.vrc_tools.editor
 
         public static bool IsEnabled()
         {
+            if (!EditorPrefs.HasKey(PrefKey))
+                EditorPrefs.SetBool(PrefKey, false); // force default to false
+
             return EditorPrefs.GetBool(PrefKey, false);
         }
     }
