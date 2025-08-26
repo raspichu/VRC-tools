@@ -1,7 +1,8 @@
-using UnityEditor;
-using UnityEngine;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
+using UnityEditor;
+using UnityEngine;
 
 namespace raspichu.vrc_tools.editor
 {
@@ -23,7 +24,7 @@ namespace raspichu.vrc_tools.editor
             {
                 return;
             }
-            
+
             // We open the window and pass the assets that were imported in the last operation
             if (lastImportedAssets != null && lastImportedAssets.Length > 0)
             {
@@ -41,7 +42,8 @@ namespace raspichu.vrc_tools.editor
             string[] importedAssets,
             string[] deletedAssets,
             string[] movedAssets,
-            string[] movedFromAssetPaths)
+            string[] movedFromAssetPaths
+        )
         {
             if (!PackageSorterToggle.IsEnabled())
             {
@@ -60,7 +62,15 @@ namespace raspichu.vrc_tools.editor
     {
         private string packageName;
         private string selectedCategory = "Clothes";
-        private string[] categories = new string[] { "Clothes", "Models", "Shaders", "Scripts", "Hair", "Other" };
+        private string[] categories = new string[]
+        {
+            "Clothes",
+            "Models",
+            "Shaders",
+            "Scripts",
+            "Hair",
+            "Other",
+        };
 
         private string[] importedAssets;
 
@@ -71,16 +81,21 @@ namespace raspichu.vrc_tools.editor
         private GUIStyle assetStyle;
         private GUIStyle buttonStyle;
 
-
         private void EnsureStyles()
-    {
-        if (headerStyle == null)
-            headerStyle = new GUIStyle(EditorStyles.boldLabel) { fontSize = 14 };
-        if (assetStyle == null)
-            assetStyle = new GUIStyle(EditorStyles.label) { wordWrap = true };
-        if (buttonStyle == null)
-            buttonStyle = new GUIStyle(GUI.skin.button) { fontStyle = FontStyle.Bold };
-    }
+        {
+            if (headerStyle == null)
+            {
+                headerStyle = new GUIStyle(EditorStyles.boldLabel) { fontSize = 14 };
+            }
+            if (assetStyle == null)
+            {
+                assetStyle = new GUIStyle(EditorStyles.label) { wordWrap = true };
+            }
+            if (buttonStyle == null)
+            {
+                buttonStyle = new GUIStyle(GUI.skin.button) { fontStyle = FontStyle.Bold };
+            }
+        }
 
         public void SetPackage(string name, string[] assets)
         {
@@ -109,7 +124,8 @@ namespace raspichu.vrc_tools.editor
             selectedCategory = categories[selectedIndex];
 
             string selectedCategoryParsed = $"__{selectedCategory}__";
-            string previewPath = Path.Combine("Assets", selectedCategoryParsed, packageName);
+            string finalRoute = GetCommonRoute() ?? packageName;
+            string previewPath = Path.Combine("Assets", selectedCategoryParsed, finalRoute);
             EditorGUILayout.LabelField("Destination:", previewPath, EditorStyles.helpBox);
 
             EditorGUILayout.Space();
@@ -146,54 +162,152 @@ namespace raspichu.vrc_tools.editor
             EditorGUILayout.EndHorizontal();
         }
 
+        string GetCommonRoute()
+        {
+            if (importedAssets == null || importedAssets.Length == 0)
+            {
+                return null;
+            }
+
+            // We check if there is a common root folder
+            string commonRoot = null;
+
+            if (importedAssets.Length > 0)
+            {
+                // Split all paths into segments and store them
+                var splitPaths = importedAssets
+                    .Where(path => path.StartsWith("Assets/"))
+                    .Select(path => path.Substring("Assets/".Length).Split('/'))
+                    .ToList();
+
+                if (splitPaths.Count > 0)
+                {
+                    // Start with the first path segments as a baseline
+                    var firstSegments = splitPaths[0];
+                    int commonLength = firstSegments.Length;
+
+                    // Compare with each other path
+                    foreach (var segments in splitPaths)
+                    {
+                        int i = 0;
+                        // Compare each segment level
+                        while (
+                            i < commonLength
+                            && i < segments.Length
+                            && segments[i] == firstSegments[i]
+                        )
+                        {
+                            i++;
+                        }
+                        commonLength = i;
+                        if (commonLength == 0)
+                            break; // No common folder at all
+                    }
+
+                    if (commonLength > 0)
+                    {
+                        commonRoot = string.Join("/", firstSegments.Take(commonLength));
+                    }
+                }
+            }
+
+            return commonRoot;
+        }
+
+        void DeleteEmptyFolders(string folderPath)
+        {
+            if (!AssetDatabase.IsValidFolder(folderPath))
+                return;
+
+            // Get subfolders
+            string[] subFolders = AssetDatabase.GetSubFolders(folderPath);
+            foreach (var sub in subFolders)
+            {
+                DeleteEmptyFolders(sub);
+            }
+
+            // If folder is empty, delete it
+            string[] assets = AssetDatabase.FindAssets("", new[] { folderPath });
+            if (assets.Length == 0)
+            {
+                AssetDatabase.DeleteAsset(folderPath);
+            }
+        }
+
         void SortImportedAssets()
         {
-            if (importedAssets == null || importedAssets.Length == 0) return;
+            if (importedAssets == null || importedAssets.Length == 0)
+            {
+                return;
+            }
+
+            // We check if there is a common root folder
+            string commonRoute = GetCommonRoute();
+            string finalRoute = commonRoute ?? packageName;
+
+            if (importedAssets.Length > 0)
+            {
+                // Split all paths into segments and store them
+                var splitPaths = importedAssets
+                    .Where(path => path.StartsWith("Assets/"))
+                    .Select(path => path.Substring("Assets/".Length).Split('/'))
+                    .ToList();
+
+                if (splitPaths.Count > 0)
+                {
+                    // Start with the first path segments as a baseline
+                    var firstSegments = splitPaths[0];
+                    int commonLength = firstSegments.Length;
+
+                    // Compare with each other path
+                    foreach (var segments in splitPaths)
+                    {
+                        int i = 0;
+                        // Compare each segment level
+                        while (
+                            i < commonLength
+                            && i < segments.Length
+                            && segments[i] == firstSegments[i]
+                        )
+                        {
+                            i++;
+                        }
+                        commonLength = i;
+                        if (commonLength == 0)
+                            break; // No common folder at all
+                    }
+
+                    if (commonLength > 0)
+                    {
+                        finalRoute = string.Join("/", firstSegments.Take(commonLength));
+                    }
+                }
+            }
 
             string selectedCategoryParsed = $"__{selectedCategory}__";
-            string rootFolder = Path.Combine("Assets", selectedCategoryParsed, packageName);
+            string rootFolder = Path.Combine("Assets", selectedCategoryParsed, finalRoute);
 
-            // Create folder if it doesn't exist
+            // Ensure root folder exists
             if (!AssetDatabase.IsValidFolder(rootFolder))
             {
                 Directory.CreateDirectory(rootFolder);
                 AssetDatabase.Refresh();
             }
 
-
-            // We check if there is a common root folder, so we don't end up duplicating the folder with the same name
-            string commonRoot = null;
-            if (importedAssets.Length > 0)
-            {
-                foreach (var assetPath in importedAssets)
-                {
-                    if (!assetPath.StartsWith("Assets/")) continue;
-
-                    string[] segments = assetPath.Substring("Assets/".Length).Split('/');
-                    if (segments.Length == 0) continue;
-
-                    string root = segments[0];
-                    if (commonRoot == null)
-                    {
-                        commonRoot = root;
-                    }
-                    else if (commonRoot != root)
-                    {
-                        commonRoot = null;
-                        break;
-                    }
-                }
-            }
-
-            // We create the new folder structure
+            // Create the new folder structure and move assets
             foreach (var assetPath in importedAssets)
             {
-                if (!assetPath.StartsWith("Assets/")) continue;
+                if (!assetPath.StartsWith("Assets/"))
+                    continue;
 
                 string relativePath = assetPath.Substring("Assets/".Length);
+                if (relativePath == finalRoute)
+                {
+                    continue;
+                }
 
-                // We delete the first segment if it matches packageName and is the only root folder
-                if (commonRoot != null && commonRoot == packageName)
+                // Remove the commonRoot prefix if present
+                if (!string.IsNullOrEmpty(finalRoute) && relativePath.StartsWith(finalRoute + "/"))
                 {
                     int firstSlash = relativePath.IndexOf('/');
                     if (firstSlash >= 0)
@@ -202,8 +316,13 @@ namespace raspichu.vrc_tools.editor
                         relativePath = ""; // Only root folder
                 }
 
-                string newPath = Path.Combine("Assets", selectedCategoryParsed, packageName, relativePath)
-                                    .Replace("\\", "/");
+                string newPath = Path.Combine(
+                        "Assets",
+                        selectedCategoryParsed,
+                        finalRoute,
+                        relativePath
+                    )
+                    .Replace("\\", "/");
 
                 // Create necessary folders
                 string newFolder = Path.GetDirectoryName(newPath);
@@ -220,29 +339,21 @@ namespace raspichu.vrc_tools.editor
                     }
                 }
 
+                Debug.Log(
+                    $"[PI] Moving {assetPath} to Assets/{selectedCategoryParsed}/{finalRoute}/{relativePath}"
+                );
+
                 AssetDatabase.MoveAsset(assetPath, newPath);
             }
-
-            // After moving all assets
-            if (!string.IsNullOrEmpty(commonRoot))
+            foreach (var assetPath in importedAssets)
             {
-                string originalRoot = Path.Combine("Assets", commonRoot).Replace("\\", "/");
-                if (AssetDatabase.IsValidFolder(originalRoot))
-                {
-                    // Check if empty
-                    string[] contents = AssetDatabase.FindAssets("", new[] { originalRoot });
-                    if (contents.Length == 0)
-                    {
-                        AssetDatabase.DeleteAsset(originalRoot);
-                    }
-                }
+                DeleteEmptyFolders(assetPath);
             }
 
             AssetDatabase.Refresh();
             Close();
         }
     }
-
 
     public static class PackageSorterToggle
     {
