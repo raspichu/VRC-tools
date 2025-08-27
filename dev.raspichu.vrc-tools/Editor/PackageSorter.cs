@@ -366,18 +366,17 @@ namespace raspichu.vrc_tools.editor
             EditorPrefs.SetBool(PrefKey, !current);
         }
 
-        [MenuItem("Tools/Pichu/Enable Sort Imported Package", true)]
-        private static bool ToggleSortPackageValidate()
-        {
-            bool enabled = IsEnabled();
-            Menu.SetChecked("Tools/Pichu/Enable Sort Imported Package", enabled);
-            return true;
-        }
-
         public static bool IsEnabled()
         {
             if (!EditorPrefs.HasKey(PrefKey))
+            {
+                Debug.Log("[PI] Package Sorter preference not found. Setting default to disabled.");
                 EditorPrefs.SetBool(PrefKey, false); // force default to false
+            }
+            else
+            {
+                Debug.Log($"[PI] Package Sorter is {(IsEnabled() ? "enabled" : "disabled")}");
+            }
 
             return EditorPrefs.GetBool(PrefKey, false);
         }
