@@ -363,7 +363,7 @@ namespace raspichu.vrc_tools.editor
         private static void ToggleSortPackage()
         {
             bool current = IsEnabled();
-            EditorPrefs.SetBool(PrefKey, !current);
+            SetEnabled(!current);
         }
 
         [MenuItem("Tools/Pichu/Enable Sort Imported Package", true)]
@@ -376,12 +376,12 @@ namespace raspichu.vrc_tools.editor
 
         public static bool IsEnabled()
         {
-            if (!EditorPrefs.HasKey(PrefKey))
-            {
-                EditorPrefs.SetBool(PrefKey, false); // force default to false
-            }
+            return EditorUserSettings.GetConfigValue(PrefKey) == "1";
+        }
 
-            return EditorPrefs.GetBool(PrefKey, false);
+        public static void SetEnabled(bool value)
+        {
+            EditorUserSettings.SetConfigValue(PrefKey, value ? "1" : "0");
         }
     }
 }
