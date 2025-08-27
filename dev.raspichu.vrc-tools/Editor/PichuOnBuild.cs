@@ -6,7 +6,9 @@ using VRC.SDKBase.Editor.BuildPipeline;
 
 using raspichu.vrc_tools.component;
 using raspichu.vrc_tools.editor;
+#if MA_EXISTS
 using nadena.dev.ndmf;
+
 
 
 [assembly: ExportsPlugin(typeof(PichuOnBuild))]
@@ -85,3 +87,4 @@ public class PichuOnBuild : Plugin<PichuOnBuild>
             });
     }
 }
+#endif
