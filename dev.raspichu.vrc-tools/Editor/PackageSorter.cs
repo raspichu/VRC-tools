@@ -359,18 +359,18 @@ namespace raspichu.vrc_tools.editor
     {
         private const string PrefKey = "Pichu_SortPackage_Enabled";
 
-        [MenuItem("Tools/Pichu/Enable Sort Imported Package")]
+        [MenuItem("Tools/Pichu/Options/Enable Sort Imported Package")]
         private static void ToggleSortPackage()
         {
             bool current = IsEnabled();
             SetEnabled(!current);
         }
 
-        [MenuItem("Tools/Pichu/Enable Sort Imported Package", true)]
+        [MenuItem("Tools/Pichu/Options/Enable Sort Imported Package", true)]
         private static bool ToggleSortPackageValidate()
         {
             // Always enable the menu
-            Menu.SetChecked("Tools/Pichu/Enable Sort Imported Package", IsEnabled());
+            Menu.SetChecked("Tools/Pichu/Options/Enable Sort Imported Package", IsEnabled());
             return true;
         }
 
