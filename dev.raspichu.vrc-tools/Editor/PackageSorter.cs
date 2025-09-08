@@ -28,6 +28,13 @@ namespace raspichu.vrc_tools.editor
             // We open the window and pass the assets that were imported in the last operation
             if (lastImportedAssets != null && lastImportedAssets.Length > 0)
             {
+                // Si ya están dentro de carpetas __Category__, ignorar
+                if (IsAlreadySorted(lastImportedAssets, PackageSorterCategories.Categories))
+                {
+                    lastImportedAssets = null;
+                    return;
+                }
+
                 PackageSorterWindow window = EditorWindow.GetWindow<PackageSorterWindow>();
                 window.titleContent = new GUIContent("Package Sorter");
                 window.SetPackage(packageName, lastImportedAssets);
@@ -56,21 +63,27 @@ namespace raspichu.vrc_tools.editor
                 lastImportedAssets = importedAssets;
             }
         }
+
+        private static bool IsAlreadySorted(string[] assets, string[] categories)
+        {
+            foreach (var asset in assets)
+            {
+                if (!asset.StartsWith("Assets/"))
+                    continue;
+
+                // comprobar si el path contiene alguna categoría ya ordenada
+                bool inCategory = categories.Any(cat => asset.Contains($"__{cat}__"));
+                if (!inCategory)
+                    return false; // si al menos uno no está en carpeta de destino, no está completamente ordenado
+            }
+            return true;
+        }
     }
 
     public class PackageSorterWindow : EditorWindow
     {
         private string packageName;
         private string selectedCategory = "Clothes";
-        private string[] categories = new string[]
-        {
-            "Clothes",
-            "Models",
-            "Shaders",
-            "Scripts",
-            "Hair",
-            "Other",
-        };
 
         private string[] importedAssets;
 
@@ -119,6 +132,7 @@ namespace raspichu.vrc_tools.editor
             // adds _ at the start and end __{selectedCategory}__
 
             // Target Folder
+            var categories = PackageSorterCategories.Categories;
             int selectedIndex = System.Array.IndexOf(categories, selectedCategory);
             selectedIndex = EditorGUILayout.Popup("Target Folder", selectedIndex, categories);
             selectedCategory = categories[selectedIndex];
@@ -383,5 +397,18 @@ namespace raspichu.vrc_tools.editor
         {
             EditorUserSettings.SetConfigValue(PrefKey, value ? "1" : "0");
         }
+    }
+
+    public static class PackageSorterCategories
+    {
+        public static readonly string[] Categories = new string[]
+        {
+            "Clothes",
+            "Models",
+            "Shaders",
+            "Scripts",
+            "Hair",
+            "Other",
+        };
     }
 }
