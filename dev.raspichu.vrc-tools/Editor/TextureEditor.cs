@@ -20,6 +20,21 @@ namespace raspichu.vrc_tools.editor
             return false;
         }
 
+        [MenuItem("Assets/Pichu/Poiyomi Bake texture", true)]
+        private static bool ValidateBake()
+        {
+            foreach (Object obj in Selection.objects)
+            {
+                if (obj is Material mat && mat.shader != null)
+                {
+                    string shaderName = mat.shader.name.ToLower();
+                    if (shaderName.Contains("poiyomi"))
+                        return true;
+                }
+            }
+            return false;
+        }
+
         // Invert Texture
         [MenuItem("Assets/Pichu/Invert Texture", false, 100)]
         private static void InvertSelectedTextures()
@@ -36,7 +51,7 @@ namespace raspichu.vrc_tools.editor
         }
 
         // Grayscale texture
-        [MenuItem("Assets/Pichu/Grayscale Texture", false, 101)]
+        [MenuItem("Assets/Pichu/Grayscale Texture", false, 102)]
         private static void GrayscaleSelectedTextures()
         {
             foreach (Object obj in Selection.objects)
@@ -47,6 +62,38 @@ namespace raspichu.vrc_tools.editor
 
                 Texture2D gray = ProcessTexture(texture, GrayscalePixels);
                 SaveProcessedTexture(texture, gray, "_grayscale.png");
+            }
+        }
+
+        [MenuItem("Assets/Pichu/Poiyomi Bake texture", false, 200)]
+        private static void BakePoiyomiTexture()
+        {
+            foreach (Object obj in Selection.objects)
+            {
+                Material mat = obj as Material;
+                if (mat == null)
+                    continue;
+
+                Texture2D bakedTex = BakePoiyomiMaterial(mat);
+                if (bakedTex != null)
+                {
+                    string newPath = SaveProcessedTexture(mat, bakedTex, "_baked.png");
+                    Debug.Log($"Baked texture saved at: {newPath}");
+                    ResetPoiValues(mat);
+                    // Assign to material
+                    if (mat.HasProperty("_MainTex"))
+                    {
+                        // Get relative path
+                        string assetPath = newPath.Replace("\\", "/"); // Change slashes
+
+                        Debug.Log($"Assigning new texture to material: {assetPath}");
+
+                        Texture2D newTex = AssetDatabase.LoadAssetAtPath<Texture2D>(assetPath);
+
+                        if (newTex != null)
+                            mat.SetTexture("_MainTex", newTex);
+                    }
+                }
             }
         }
 
@@ -118,15 +165,89 @@ namespace raspichu.vrc_tools.editor
             return pixels;
         }
 
+        private static Texture2D BakePoiyomiMaterial(Material mat)
+        {
+            if (mat == null)
+            {
+                Debug.LogError("No material provided");
+                return null;
+            }
+
+            // Obtain main texture
+            Texture mainTex = mat.HasProperty("_MainTex") ? mat.GetTexture("_MainTex") : null;
+            if (mainTex == null)
+            {
+                Debug.LogError("Material has no _MainTex");
+                return null;
+            }
+
+            int width = mainTex.width;
+            int height = mainTex.height;
+
+            // Create temporary RenderTexture
+            RenderTexture rt = RenderTexture.GetTemporary(
+                width,
+                height,
+                0,
+                RenderTextureFormat.ARGB32
+            );
+            RenderTexture.active = rt;
+
+            // Blit: render the complete material
+            Graphics.Blit(null, rt, mat);
+
+            // Read pixels from RenderTexture to Texture2D
+            Texture2D baked = new Texture2D(width, height, TextureFormat.RGBA32, false);
+            baked.ReadPixels(new Rect(0, 0, width, height), 0, 0);
+            baked.Apply();
+
+            // Clean up
+            RenderTexture.active = null;
+            RenderTexture.ReleaseTemporary(rt);
+
+            return baked;
+        }
+
+        private static void ResetPoiValues(Material mat)
+        {
+            if (mat == null)
+            {
+                Debug.LogError("Material nulo");
+                return;
+            }
+            // Reset Poiyomi properties to defaults
+            // Textura principal y color
+            if (mat.HasProperty("_Color"))
+                mat.SetColor("_Color", Color.white);
+
+            // Color adjust
+            if (mat.HasProperty("_MainColorAdjustToggle"))
+            {
+                if (mat.HasProperty("_Saturation"))
+                    mat.SetFloat("_Saturation", 0f);
+                if (mat.HasProperty("_MainBrightness"))
+                    mat.SetFloat("_MainBrightness", 0f);
+                if (mat.HasProperty("_MainGamma"))
+                    mat.SetFloat("_MainGamma", 1f);
+
+                // Hue shift
+                if (mat.HasProperty("_MainHueShiftToggle"))
+                {
+                    if (mat.HasProperty("_MainHueShift"))
+                        mat.SetFloat("_MainHueShift", 0f);
+                }
+            }
+        }
+
         // Common method to save processed texture
-        private static void SaveProcessedTexture(
+        private static string SaveProcessedTexture(
             Object obj,
             Texture2D processed,
             string suffix = "_edit.png"
         )
         {
             if (processed == null)
-                return;
+                return null;
 
             // Obtener ruta de carpeta
             string directory = Application.dataPath; // default
@@ -159,6 +280,7 @@ namespace raspichu.vrc_tools.editor
             AssetDatabase.Refresh();
 
             Debug.Log($"Texture saved at: {newPath}");
+            return newPath;
         }
     }
 }
