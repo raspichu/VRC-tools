@@ -67,7 +67,6 @@ namespace raspichu.vrc_tools.editor
             if (!wasReadable)
             {
                 importer.isReadable = true;
-                importer.textureCompression = TextureImporterCompression.Uncompressed;
                 importer.SaveAndReimport();
             }
 
