@@ -92,6 +92,18 @@ This tool automatically opens a window after importing a `.unitypackage`, allowi
 3. Select a category (`Clothes`, `Models`, `Other`) for the imported assets.
 4. Press **Sort**. Only the assets from the imported package will be moved, preserving folder structure.
 
+### Material Property Finder
+
+This tool lets you search and inspect all materials on a selected GameObject, including its children. 
+You can filter by a specific property and view which materials have it.
+
+1. Select a GameObject in your Scene or Hierarchy.
+2. Open the tool via:
+   - Right-click → `Pichu -> Material Property Finder`
+   - Or `Tools -> Pichu -> Material Property Finder`
+3. Enter the property name you want to search for.
+4. Press **Search** to populate the list of materials.
+
 
 
 ## Installation
