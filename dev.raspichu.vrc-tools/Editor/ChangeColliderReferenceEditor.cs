@@ -1,6 +1,6 @@
+using raspichu.vrc_tools.component;
 using UnityEditor;
 using UnityEngine;
-using raspichu.vrc_tools.component;
 using VRC.SDK3.Avatars.Components;
 
 namespace raspichu.vrc_tools.editor
@@ -8,10 +8,8 @@ namespace raspichu.vrc_tools.editor
     [CustomEditor(typeof(ChangeColliderReference))]
     public class ChangeColliderReferenceEditor : Editor
     {
-
         // Avatar reference
         private SerializedProperty avatarDescriptorProp;
-
 
         // Checkbox properties
         private SerializedProperty changeLeftIndexProp;
@@ -29,7 +27,6 @@ namespace raspichu.vrc_tools.editor
         private SerializedProperty changeHeadProp;
         private SerializedProperty changeTorsoProp;
 
-
         // References to the transforms for each finger and hand
         private SerializedProperty leftIndexProp;
         private SerializedProperty leftMiddleProp;
@@ -45,6 +42,8 @@ namespace raspichu.vrc_tools.editor
 
         private SerializedProperty headProp;
         private SerializedProperty torsoProp;
+
+        private SerializedProperty constraintZeroToAutoProp;
 
         void OnEnable()
         {
@@ -87,8 +86,9 @@ namespace raspichu.vrc_tools.editor
             headProp = serializedObject.FindProperty("Head");
             torsoProp = serializedObject.FindProperty("Torso");
 
-            FindAndSetProperties();
+            constraintZeroToAutoProp = serializedObject.FindProperty("constraintZeroToAuto");
 
+            FindAndSetProperties();
         }
 
         public override void OnInspectorGUI()
@@ -96,51 +96,82 @@ namespace raspichu.vrc_tools.editor
             serializedObject.Update();
 
             // Experimental
-            EditorGUILayout.HelpBox("This script is experimental and may not work as expected", MessageType.Warning);
-
+            EditorGUILayout.HelpBox(
+                "This script is experimental and may not work as expected",
+                MessageType.Warning
+            );
 
             EditorGUILayout.Space();
 
             EditorGUILayout.LabelField("Left Hand", EditorStyles.boldLabel);
-            changeLeftHandProp.boolValue = EditorGUILayout.Toggle("Left Hand", changeLeftHandProp.boolValue);
+            changeLeftHandProp.boolValue = EditorGUILayout.Toggle(
+                "Left Hand",
+                changeLeftHandProp.boolValue
+            );
             if (changeLeftHandProp.boolValue)
                 EditorGUILayout.PropertyField(leftHandProp);
-            changeLeftIndexProp.boolValue = EditorGUILayout.Toggle("Left Index", changeLeftIndexProp.boolValue);
+            changeLeftIndexProp.boolValue = EditorGUILayout.Toggle(
+                "Left Index",
+                changeLeftIndexProp.boolValue
+            );
             if (changeLeftIndexProp.boolValue)
                 EditorGUILayout.PropertyField(leftIndexProp);
 
-            changeLeftMiddleProp.boolValue = EditorGUILayout.Toggle("Left Middle", changeLeftMiddleProp.boolValue);
+            changeLeftMiddleProp.boolValue = EditorGUILayout.Toggle(
+                "Left Middle",
+                changeLeftMiddleProp.boolValue
+            );
             if (changeLeftMiddleProp.boolValue)
                 EditorGUILayout.PropertyField(leftMiddleProp);
 
-            changeLeftRingProp.boolValue = EditorGUILayout.Toggle("Left Ring", changeLeftRingProp.boolValue);
+            changeLeftRingProp.boolValue = EditorGUILayout.Toggle(
+                "Left Ring",
+                changeLeftRingProp.boolValue
+            );
             if (changeLeftRingProp.boolValue)
                 EditorGUILayout.PropertyField(leftRingProp);
 
-            changeLeftPinkyProp.boolValue = EditorGUILayout.Toggle("Left Pinky", changeLeftPinkyProp.boolValue);
+            changeLeftPinkyProp.boolValue = EditorGUILayout.Toggle(
+                "Left Pinky",
+                changeLeftPinkyProp.boolValue
+            );
             if (changeLeftPinkyProp.boolValue)
                 EditorGUILayout.PropertyField(leftPinkyProp);
-
 
             EditorGUILayout.Space();
 
             EditorGUILayout.LabelField("Right Hand", EditorStyles.boldLabel);
-            changeRightHandProp.boolValue = EditorGUILayout.Toggle("Right Hand", changeRightHandProp.boolValue);
+            changeRightHandProp.boolValue = EditorGUILayout.Toggle(
+                "Right Hand",
+                changeRightHandProp.boolValue
+            );
             if (changeRightHandProp.boolValue)
                 EditorGUILayout.PropertyField(rightHandProp);
-            changeRightIndexProp.boolValue = EditorGUILayout.Toggle("Right Index", changeRightIndexProp.boolValue);
+            changeRightIndexProp.boolValue = EditorGUILayout.Toggle(
+                "Right Index",
+                changeRightIndexProp.boolValue
+            );
             if (changeRightIndexProp.boolValue)
                 EditorGUILayout.PropertyField(rightIndexProp);
 
-            changeRightMiddleProp.boolValue = EditorGUILayout.Toggle("Right Middle", changeRightMiddleProp.boolValue);
+            changeRightMiddleProp.boolValue = EditorGUILayout.Toggle(
+                "Right Middle",
+                changeRightMiddleProp.boolValue
+            );
             if (changeRightMiddleProp.boolValue)
                 EditorGUILayout.PropertyField(rightMiddleProp);
 
-            changeRightRingProp.boolValue = EditorGUILayout.Toggle("Right Ring", changeRightRingProp.boolValue);
+            changeRightRingProp.boolValue = EditorGUILayout.Toggle(
+                "Right Ring",
+                changeRightRingProp.boolValue
+            );
             if (changeRightRingProp.boolValue)
                 EditorGUILayout.PropertyField(rightRingProp);
 
-            changeRightPinkyProp.boolValue = EditorGUILayout.Toggle("Right Pinky", changeRightPinkyProp.boolValue);
+            changeRightPinkyProp.boolValue = EditorGUILayout.Toggle(
+                "Right Pinky",
+                changeRightPinkyProp.boolValue
+            );
             if (changeRightPinkyProp.boolValue)
                 EditorGUILayout.PropertyField(rightPinkyProp);
 
@@ -156,7 +187,14 @@ namespace raspichu.vrc_tools.editor
             if (changeTorsoProp.boolValue)
                 EditorGUILayout.PropertyField(torsoProp);
 
+            EditorGUILayout.Space();
+            EditorGUILayout.Space();
 
+            EditorGUILayout.LabelField("Advanced", EditorStyles.boldLabel);
+            constraintZeroToAutoProp.boolValue = EditorGUILayout.Toggle(
+                "Constraint 0 to Auto",
+                constraintZeroToAutoProp.boolValue
+            );
 
             serializedObject.ApplyModifiedProperties();
         }
@@ -168,32 +206,57 @@ namespace raspichu.vrc_tools.editor
             if (!avatarDescriptorProp.objectReferenceValue)
             {
                 ChangeColliderReference changeColliderReference = (ChangeColliderReference)target;
-                avatarDescriptorProp.objectReferenceValue = CommonEditor.GetVRCAvatarDescriptors(changeColliderReference.gameObject);
+                avatarDescriptorProp.objectReferenceValue = CommonEditor.GetVRCAvatarDescriptors(
+                    changeColliderReference.gameObject
+                );
             }
 
-            VRCAvatarDescriptor avatarDescriptor = avatarDescriptorProp.objectReferenceValue as VRCAvatarDescriptor;
+            VRCAvatarDescriptor avatarDescriptor =
+                avatarDescriptorProp.objectReferenceValue as VRCAvatarDescriptor;
 
+            if (!leftIndexProp.objectReferenceValue)
+                leftIndexProp.objectReferenceValue = avatarDescriptor
+                    .collider_fingerIndexL
+                    .transform;
+            if (!leftMiddleProp.objectReferenceValue)
+                leftMiddleProp.objectReferenceValue = avatarDescriptor
+                    .collider_fingerMiddleL
+                    .transform;
+            if (!leftRingProp.objectReferenceValue)
+                leftRingProp.objectReferenceValue = avatarDescriptor.collider_fingerRingL.transform;
+            if (!leftPinkyProp.objectReferenceValue)
+                leftPinkyProp.objectReferenceValue = avatarDescriptor
+                    .collider_fingerLittleL
+                    .transform;
+            if (!leftHandProp.objectReferenceValue)
+                leftHandProp.objectReferenceValue = avatarDescriptor.collider_handL.transform;
 
-            if (!leftIndexProp.objectReferenceValue) leftIndexProp.objectReferenceValue = avatarDescriptor.collider_fingerIndexL.transform;
-            if (!leftMiddleProp.objectReferenceValue) leftMiddleProp.objectReferenceValue = avatarDescriptor.collider_fingerMiddleL.transform;
-            if (!leftRingProp.objectReferenceValue) leftRingProp.objectReferenceValue = avatarDescriptor.collider_fingerRingL.transform;
-            if (!leftPinkyProp.objectReferenceValue) leftPinkyProp.objectReferenceValue = avatarDescriptor.collider_fingerLittleL.transform;
-            if (!leftHandProp.objectReferenceValue) leftHandProp.objectReferenceValue = avatarDescriptor.collider_handL.transform;
+            if (!rightIndexProp.objectReferenceValue)
+                rightIndexProp.objectReferenceValue = avatarDescriptor
+                    .collider_fingerIndexR
+                    .transform;
+            if (!rightMiddleProp.objectReferenceValue)
+                rightMiddleProp.objectReferenceValue = avatarDescriptor
+                    .collider_fingerMiddleR
+                    .transform;
+            if (!rightRingProp.objectReferenceValue)
+                rightRingProp.objectReferenceValue = avatarDescriptor
+                    .collider_fingerRingR
+                    .transform;
+            if (!rightPinkyProp.objectReferenceValue)
+                rightPinkyProp.objectReferenceValue = avatarDescriptor
+                    .collider_fingerLittleL
+                    .transform;
+            if (!rightHandProp.objectReferenceValue)
+                rightHandProp.objectReferenceValue = avatarDescriptor.collider_handR.transform;
 
-            if (!rightIndexProp.objectReferenceValue) rightIndexProp.objectReferenceValue = avatarDescriptor.collider_fingerIndexR.transform;
-            if (!rightMiddleProp.objectReferenceValue) rightMiddleProp.objectReferenceValue = avatarDescriptor.collider_fingerMiddleR.transform;
-            if (!rightRingProp.objectReferenceValue) rightRingProp.objectReferenceValue = avatarDescriptor.collider_fingerRingR.transform;
-            if (!rightPinkyProp.objectReferenceValue) rightPinkyProp.objectReferenceValue = avatarDescriptor.collider_fingerLittleL.transform;
-            if (!rightHandProp.objectReferenceValue) rightHandProp.objectReferenceValue = avatarDescriptor.collider_handR.transform;
-
-            if (!headProp.objectReferenceValue) headProp.objectReferenceValue = avatarDescriptor.collider_head.transform;
-            if (!torsoProp.objectReferenceValue) torsoProp.objectReferenceValue = avatarDescriptor.collider_torso.transform;
+            if (!headProp.objectReferenceValue)
+                headProp.objectReferenceValue = avatarDescriptor.collider_head.transform;
+            if (!torsoProp.objectReferenceValue)
+                torsoProp.objectReferenceValue = avatarDescriptor.collider_torso.transform;
 
             // Apply modified properties to update changes
             serializedObject.ApplyModifiedProperties();
         }
-
-
-
     }
 }

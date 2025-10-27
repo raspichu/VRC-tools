@@ -1,14 +1,15 @@
 using UnityEngine;
-using VRC.SDKBase;
 using VRC.SDK3.Avatars.Components;
+using VRC.SDK3.Dynamics.Constraint.Components;
+using VRC.SDKBase;
 
 namespace raspichu.vrc_tools.component
 {
     [AddComponentMenu("Pichu/Change collider reference")]
     public class ChangeColliderReference : MonoBehaviour, IEditorOnly
     {
-
         public VRCAvatarDescriptor avatarDescriptor;
+
         // References to the transforms for each finger and hand
         public Transform leftIndex;
         public Transform leftMiddle;
@@ -41,6 +42,8 @@ namespace raspichu.vrc_tools.component
         public bool changeHead = false;
         public bool changeTorso = false;
 
+        public bool constraintZeroToAuto = false;
+
         public void ApplyColliderChanges()
         {
             // Change the avatar colliders positions to object reference values
@@ -50,95 +53,101 @@ namespace raspichu.vrc_tools.component
                 return;
             }
 
-            if (changeLeftIndex)
-            {
-                avatarDescriptor.collider_fingerIndexL.transform = leftIndex;
-                avatarDescriptor.collider_fingerIndexL.state = VRCAvatarDescriptor.ColliderConfig.State.Custom;
-                avatarDescriptor.collider_fingerIndexL.isMirrored = false;
-                avatarDescriptor.collider_fingerIndexL.position = Vector3.zero;
-            }
-            if (changeLeftMiddle)
-            {
-                avatarDescriptor.collider_fingerMiddleL.transform = leftMiddle;
-                avatarDescriptor.collider_fingerMiddleL.state = VRCAvatarDescriptor.ColliderConfig.State.Custom;
-                avatarDescriptor.collider_fingerMiddleL.isMirrored = false;
-                avatarDescriptor.collider_fingerMiddleL.position = Vector3.zero;
-            }
-            if (changeLeftRing)
-            {
-                avatarDescriptor.collider_fingerRingL.transform = leftRing;
-                avatarDescriptor.collider_fingerRingL.state = VRCAvatarDescriptor.ColliderConfig.State.Custom;
-                avatarDescriptor.collider_fingerRingL.isMirrored = false;
-                avatarDescriptor.collider_fingerRingL.position = Vector3.zero;
-            }
-            if (changeLeftPinky)
-            {
-                avatarDescriptor.collider_fingerLittleL.transform = leftPinky;
-                avatarDescriptor.collider_fingerLittleL.state = VRCAvatarDescriptor.ColliderConfig.State.Custom;
-                avatarDescriptor.collider_fingerLittleL.isMirrored = false;
-                avatarDescriptor.collider_fingerLittleL.position = Vector3.zero;
-            }
-            if (changeLeftHand)
-            {
-                avatarDescriptor.collider_handL.transform = leftHand;
-                avatarDescriptor.collider_handL.state = VRCAvatarDescriptor.ColliderConfig.State.Custom;
-                avatarDescriptor.collider_handL.isMirrored = false;
-                avatarDescriptor.collider_handL.position = Vector3.zero;
-            }
+            // Left hand
+            ApplyColliderChange(
+                changeLeftIndex,
+                ref avatarDescriptor.collider_fingerIndexL,
+                leftIndex
+            );
+            ApplyColliderChange(
+                changeLeftMiddle,
+                ref avatarDescriptor.collider_fingerMiddleL,
+                leftMiddle
+            );
+            ApplyColliderChange(
+                changeLeftRing,
+                ref avatarDescriptor.collider_fingerRingL,
+                leftRing
+            );
+            ApplyColliderChange(
+                changeLeftPinky,
+                ref avatarDescriptor.collider_fingerLittleL,
+                leftPinky
+            );
+            ApplyColliderChange(changeLeftHand, ref avatarDescriptor.collider_handL, leftHand);
 
-            if (changeRightIndex)
-            {
-                avatarDescriptor.collider_fingerIndexR.transform = rightIndex;
-                avatarDescriptor.collider_fingerIndexR.state = VRCAvatarDescriptor.ColliderConfig.State.Custom;
-                avatarDescriptor.collider_fingerIndexR.isMirrored = false;
-                avatarDescriptor.collider_fingerIndexR.position = Vector3.zero;
-            }
-            if (changeRightMiddle)
-            {
-                avatarDescriptor.collider_fingerMiddleR.transform = rightMiddle;
-                avatarDescriptor.collider_fingerMiddleR.state = VRCAvatarDescriptor.ColliderConfig.State.Custom;
-                avatarDescriptor.collider_fingerMiddleR.isMirrored = false;
-                avatarDescriptor.collider_fingerMiddleR.position = Vector3.zero;
-            }
-            if (changeRightRing)
-            {
-                avatarDescriptor.collider_fingerRingR.transform = rightRing;
-                avatarDescriptor.collider_fingerRingR.state = VRCAvatarDescriptor.ColliderConfig.State.Custom;
-                avatarDescriptor.collider_fingerRingR.isMirrored = false;
-                avatarDescriptor.collider_fingerRingR.position = Vector3.zero;
-            }
-            if (changeRightPinky)
-            {
-                avatarDescriptor.collider_fingerLittleR.transform = rightPinky;
-                avatarDescriptor.collider_fingerLittleR.state = VRCAvatarDescriptor.ColliderConfig.State.Custom;
-                avatarDescriptor.collider_fingerLittleR.isMirrored = false;
-                avatarDescriptor.collider_fingerLittleR.position = Vector3.zero;
-            }
-            if (changeRightHand)
-            {
-                avatarDescriptor.collider_handR.transform = rightHand;
-                avatarDescriptor.collider_handR.state = VRCAvatarDescriptor.ColliderConfig.State.Custom;
-                avatarDescriptor.collider_handR.isMirrored = false;
-                avatarDescriptor.collider_handR.position = Vector3.zero;
-            }
+            // Right hand
+            ApplyColliderChange(
+                changeRightIndex,
+                ref avatarDescriptor.collider_fingerIndexR,
+                rightIndex
+            );
+            ApplyColliderChange(
+                changeRightMiddle,
+                ref avatarDescriptor.collider_fingerMiddleR,
+                rightMiddle
+            );
+            ApplyColliderChange(
+                changeRightRing,
+                ref avatarDescriptor.collider_fingerRingR,
+                rightRing
+            );
+            ApplyColliderChange(
+                changeRightPinky,
+                ref avatarDescriptor.collider_fingerLittleR,
+                rightPinky
+            );
+            ApplyColliderChange(changeRightHand, ref avatarDescriptor.collider_handR, rightHand);
 
-            if (changeHead)
-            {
-                avatarDescriptor.collider_head.transform = Head;
-                avatarDescriptor.collider_head.state = VRCAvatarDescriptor.ColliderConfig.State.Custom;
-                avatarDescriptor.collider_head.isMirrored = false;
-                avatarDescriptor.collider_head.position = Vector3.zero;
-            }
-
-            if (changeTorso)
-            {
-                avatarDescriptor.collider_torso.transform = Torso;
-                avatarDescriptor.collider_torso.state = VRCAvatarDescriptor.ColliderConfig.State.Custom;
-                avatarDescriptor.collider_torso.isMirrored = false;
-                avatarDescriptor.collider_torso.position = Vector3.zero;
-            }
+            // Head & torso
+            ApplyColliderChange(changeHead, ref avatarDescriptor.collider_head, Head);
+            ApplyColliderChange(changeTorso, ref avatarDescriptor.collider_torso, Torso);
         }
 
-    }
+        private void ApplyColliderChange(
+            bool shouldChange,
+            ref VRCAvatarDescriptor.ColliderConfig colliderConfig,
+            Transform target
+        )
+        {
+            if (!shouldChange || target == null)
+                return;
 
+            if (constraintZeroToAuto)
+            {
+                Debug.Log(
+                    "[ApplyColliderChange] Setting collider position from constraint source: "
+                        + target.name
+                );
+                var constraint = target.GetComponent<VRCParentConstraint>();
+                if (constraint != null && constraint.Sources.Count > 0)
+                {
+                    var source = constraint.Sources[0].SourceTransform;
+                    Debug.Log("[ApplyColliderChange] Found constraint source: " + source.name);
+                    if (source != null)
+                    {
+                        Debug.Log(
+                            "[ApplyColliderChange] Setting source position to config position before:"
+                                + source.position
+                                + " to "
+                                + colliderConfig.position
+                        );
+                        Vector3 worldPos = colliderConfig.transform.TransformPoint(
+                            colliderConfig.position
+                        );
+                        source.position = worldPos;
+                        // source.rotation = colliderConfig.transform.rotation;
+                        // source.rotation =
+                        //     colliderConfig.transform.rotation * colliderConfig.rotation;
+                        Debug.Log("[ApplyColliderChange] New source position: " + source.position);
+                    }
+                }
+            }
+            colliderConfig.transform = target;
+            colliderConfig.state = VRCAvatarDescriptor.ColliderConfig.State.Custom;
+            colliderConfig.isMirrored = false;
+
+            colliderConfig.position = Vector3.zero;
+        }
+    }
 }

@@ -12,7 +12,9 @@
     "precompiledReferences": [
         "VRCSDKBase.dll",
         "VRCSDK3A.dll",
-        "VRCCore-Editor.dll"
+        "VRCCore-Editor.dll",
+        "VRC.Dynamics.dll",
+        "VRC.SDK3.Dynamics.Constraint.dll"
     ],
     "autoReferenced": true,
     "defineConstraints": [],
