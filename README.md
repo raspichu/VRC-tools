@@ -49,14 +49,6 @@ The Path Deleter component allows you to remove relative paths from the avatar a
 1. Add a new component to an object and select `Pichu -> Path Deleter`.
 2. Type the relative path from the root of the avatar of the object you want to delete after building
 
-### Disable and Set Editor-Only
-
-This tool toggles the active state and tag of selected GameObjects. It remembers the original tag and reverts to it when toggled back.
-
-1. Select the GameObject(s) in your scene or hierarchy.
-2. Navigate to `Tools -> Pichu -> Disable and Set Editor-Only` or press the shortcut `Shift + A`.
-3. The script will disable the GameObjects and set their tag to `EditorOnly`. When toggled back, it will restore the original tag and active state.
-
 ### Component Remover (Play Mode Only)
 
 This tool allows you to remove specific components or GameObjects from your avatar during Play Mode, while keeping them intact in Build Mode. It's ideal for cleaning up unnecessary components or testing without permanently removing anything.
