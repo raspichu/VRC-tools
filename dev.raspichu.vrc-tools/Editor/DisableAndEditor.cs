@@ -9,7 +9,7 @@ namespace raspichu.vrc_tools.editor
         // Dictionary to store the original state of GameObjects
         private static readonly Dictionary<GameObject, string> originalTags = new Dictionary<GameObject, string>();
 
-        [MenuItem("Tools/Pichu/Disable and Set Editor-Only #A")]
+        [MenuItem("Tools/Pichu/Disable and Set Editor-Only #%A")]
         private static void PerformDisableAndEditorOnly()
         {
             // Get the selected GameObject(s)
