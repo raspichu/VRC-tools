@@ -83,7 +83,8 @@ namespace raspichu.vrc_tools.editor
     public class PackageSorterWindow : EditorWindow
     {
         private string packageName;
-        private string selectedCategory = "Clothes";
+        private string selectedCategory;
+        private string customFolderInput;
 
         private string[] importedAssets;
 
@@ -93,6 +94,20 @@ namespace raspichu.vrc_tools.editor
         private GUIStyle headerStyle;
         private GUIStyle assetStyle;
         private GUIStyle buttonStyle;
+
+        private void OnEnable()
+        {
+            // Load the last selected category and previously entered custom folder (if any)
+            selectedCategory = PackageSorterToggle.GetLastSelectedCategory();
+            customFolderInput = PackageSorterToggle.GetCustomFolder(); // NEW
+        }
+
+        private void OnDestroy()
+        {
+            // Save the category and custom folder when the window is closed
+            PackageSorterToggle.SetLastSelectedCategory(selectedCategory);
+            PackageSorterToggle.SetCustomFolder(customFolderInput); // NEW
+        }
 
         private void EnsureStyles()
         {
@@ -129,15 +144,36 @@ namespace raspichu.vrc_tools.editor
             EditorGUILayout.LabelField("Package Imported:", packageName, headerStyle);
             EditorGUILayout.Space();
 
-            // adds _ at the start and end __{selectedCategory}__
-
-            // Target Folder
+            // Target Folder popup
             var categories = PackageSorterCategories.Categories;
             int selectedIndex = System.Array.IndexOf(categories, selectedCategory);
-            selectedIndex = EditorGUILayout.Popup("Target Folder", selectedIndex, categories);
-            selectedCategory = categories[selectedIndex];
+            if (selectedIndex < 0)
+                selectedIndex = 0;
 
-            string selectedCategoryParsed = $"__{selectedCategory}__";
+            int newSelectedIndex = EditorGUILayout.Popup(
+                "Target Folder",
+                selectedIndex,
+                categories
+            );
+
+            if (newSelectedIndex != selectedIndex)
+            {
+                selectedCategory = categories[newSelectedIndex];
+                // Persist the selection immediately
+                PackageSorterToggle.SetLastSelectedCategory(selectedCategory);
+            }
+
+            // If user chose the "Custom" option, show an editable input for the folder name.
+            if (selectedCategory == "Custom")
+            {
+                customFolderInput = EditorGUILayout.TextField("Custom Folder", customFolderInput);
+            }
+
+            // Determine the folder marker: for normal categories we keep the __{Category}__ wrapper,
+            // for custom we use the raw customFolderInput (no __).
+            string selectedCategoryParsed =
+                selectedCategory == "Custom" ? customFolderInput : $"__{selectedCategory}__";
+
             string finalRoute = GetCommonRoute() ?? packageName;
             string previewPath = Path.Combine("Assets", selectedCategoryParsed, finalRoute);
             EditorGUILayout.LabelField("Destination:", previewPath, EditorStyles.helpBox);
@@ -162,7 +198,7 @@ namespace raspichu.vrc_tools.editor
 
             EditorGUILayout.Space();
 
-            // Botones
+            // Buttons
             EditorGUILayout.BeginHorizontal();
             if (GUILayout.Button("Sort Assets", buttonStyle, GUILayout.Height(30)))
             {
@@ -255,50 +291,13 @@ namespace raspichu.vrc_tools.editor
                 return;
             }
 
-            // We check if there is a common root folder
+            // Determine finalRoute as before...
             string commonRoute = GetCommonRoute();
             string finalRoute = commonRoute ?? packageName;
 
-            if (importedAssets.Length > 0)
-            {
-                // Split all paths into segments and store them
-                var splitPaths = importedAssets
-                    .Where(path => path.StartsWith("Assets/"))
-                    .Select(path => path.Substring("Assets/".Length).Split('/'))
-                    .ToList();
-
-                if (splitPaths.Count > 0)
-                {
-                    // Start with the first path segments as a baseline
-                    var firstSegments = splitPaths[0];
-                    int commonLength = firstSegments.Length;
-
-                    // Compare with each other path
-                    foreach (var segments in splitPaths)
-                    {
-                        int i = 0;
-                        // Compare each segment level
-                        while (
-                            i < commonLength
-                            && i < segments.Length
-                            && segments[i] == firstSegments[i]
-                        )
-                        {
-                            i++;
-                        }
-                        commonLength = i;
-                        if (commonLength == 0)
-                            break; // No common folder at all
-                    }
-
-                    if (commonLength > 0)
-                    {
-                        finalRoute = string.Join("/", firstSegments.Take(commonLength));
-                    }
-                }
-            }
-
-            string selectedCategoryParsed = $"__{selectedCategory}__";
+            // Decide parsed category/folder name
+            string selectedCategoryParsed =
+                selectedCategory == "Custom" ? customFolderInput : $"__{selectedCategory}__";
             string rootFolder = Path.Combine("Assets", selectedCategoryParsed, finalRoute);
 
             // Ensure root folder exists
@@ -308,7 +307,7 @@ namespace raspichu.vrc_tools.editor
                 AssetDatabase.Refresh();
             }
 
-            // Create the new folder structure and move assets
+            // Create the new folder structure and move assets (unchanged logic, but uses selectedCategoryParsed)
             foreach (var assetPath in importedAssets)
             {
                 if (!assetPath.StartsWith("Assets/"))
@@ -372,6 +371,8 @@ namespace raspichu.vrc_tools.editor
     public static class PackageSorterToggle
     {
         private const string PrefKey = "Pichu_SortPackage_Enabled";
+        private const string CategoryPrefKey = "Pichu_SortPackage_LastCategory";
+        private const string CustomFolderPrefKey = "Pichu_SortPackage_CustomFolder"; // new
 
         [MenuItem("Tools/Pichu/Options/Enable Sort Imported Package")]
         private static void ToggleSortPackage()
@@ -397,6 +398,44 @@ namespace raspichu.vrc_tools.editor
         {
             EditorUserSettings.SetConfigValue(PrefKey, value ? "1" : "0");
         }
+
+        public static string GetLastSelectedCategory()
+        {
+            string lastCategory = EditorUserSettings.GetConfigValue(CategoryPrefKey);
+
+            if (string.IsNullOrEmpty(lastCategory))
+            {
+                // Return the first category by default if nothing is saved
+                return PackageSorterCategories.Categories.First();
+            }
+
+            return lastCategory;
+        }
+
+        public static void SetLastSelectedCategory(string category)
+        {
+            if (!string.IsNullOrEmpty(category))
+            {
+                EditorUserSettings.SetConfigValue(CategoryPrefKey, category);
+            }
+        }
+
+        // Persist custom folder name for the "Custom" category
+        public static string GetCustomFolder()
+        {
+            string custom = EditorUserSettings.GetConfigValue(CustomFolderPrefKey);
+            if (string.IsNullOrEmpty(custom))
+                return "CustomFolder";
+            return custom;
+        }
+
+        public static void SetCustomFolder(string folder)
+        {
+            if (!string.IsNullOrEmpty(folder))
+            {
+                EditorUserSettings.SetConfigValue(CustomFolderPrefKey, folder);
+            }
+        }
     }
 
     public static class PackageSorterCategories
@@ -409,6 +448,7 @@ namespace raspichu.vrc_tools.editor
             "Scripts",
             "Hair",
             "Other",
+            "Custom",
         };
     }
 }
