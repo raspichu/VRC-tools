@@ -1,14 +1,14 @@
 {
     "name": "dev.raspichu.vrc-tools",
     "displayName": "Pichu VRC tools",
-    "version": "0.10.16",
+    "version": "0.10.17",
     "unity": "2019.4",
     "description": "Tools for VRC SDK3 avatars",
     "author": {
         "name": "Pichu"
     },
     "vpmDependencies": {
-        "com.vrchat.avatars": ">=3.3.0 <3.10.0"
+        "com.vrchat.avatars": ">=3.3.0 <3.11.0"
     },
     "url": "https://github.com/raspichu/VRC-vrc-tools"
 }
