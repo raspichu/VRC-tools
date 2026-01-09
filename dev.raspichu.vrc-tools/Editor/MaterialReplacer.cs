@@ -1,7 +1,7 @@
-using UnityEngine;
-using UnityEditor;
 using System.Collections.Generic;
 using System.Linq;
+using UnityEditor;
+using UnityEngine;
 
 namespace raspichu.vrc_tools.editor
 {
@@ -10,14 +10,15 @@ namespace raspichu.vrc_tools.editor
         private List<GameObject> targetObjects = new List<GameObject>();
 
         // Tracks all usages of each material
-        private Dictionary<Material, List<MaterialUsage>> materialUsages = new Dictionary<Material, List<MaterialUsage>>();
+        private Dictionary<Material, List<MaterialUsage>> materialUsages =
+            new Dictionary<Material, List<MaterialUsage>>();
 
         // Current replacements
         private Dictionary<Material, Material> materialMap = new Dictionary<Material, Material>();
 
         private Vector2 scroll;
 
-        private GUIStyle headerStyle;       
+        private GUIStyle headerStyle;
         private GUIStyle assetStyle;
         private GUIStyle buttonStyle;
 
@@ -58,7 +59,9 @@ namespace raspichu.vrc_tools.editor
 
         private static void ShowWindow(List<GameObject> objs)
         {
-            var window = MaterialReplacerWindow.GetWindow<MaterialReplacerWindow>("Material Replacer");
+            var window = MaterialReplacerWindow.GetWindow<MaterialReplacerWindow>(
+                "Material Replacer"
+            );
             window.targetObjects = objs;
             window.FindMaterials();
         }
@@ -70,16 +73,18 @@ namespace raspichu.vrc_tools.editor
 
             foreach (var obj in targetObjects)
             {
-                if (obj == null) continue;
+                if (obj == null)
+                    continue;
 
-                var renderers = obj.GetComponentsInChildren<SkinnedMeshRenderer>();
+                var renderers = obj.GetComponentsInChildren<SkinnedMeshRenderer>(true);
                 foreach (var renderer in renderers)
                 {
                     var mats = renderer.sharedMaterials;
                     for (int i = 0; i < mats.Length; i++)
                     {
                         var mat = mats[i];
-                        if (mat == null) continue;
+                        if (mat == null)
+                            continue;
 
                         if (!materialUsages.ContainsKey(mat))
                         {
@@ -87,12 +92,15 @@ namespace raspichu.vrc_tools.editor
                             materialMap[mat] = null;
                         }
 
-                        materialUsages[mat].Add(new MaterialUsage
-                        {
-                            renderer = renderer,
-                            index = i,
-                            originalMaterial = mat
-                        });
+                        materialUsages[mat]
+                            .Add(
+                                new MaterialUsage
+                                {
+                                    renderer = renderer,
+                                    index = i,
+                                    originalMaterial = mat,
+                                }
+                            );
                     }
                 }
             }
@@ -101,7 +109,11 @@ namespace raspichu.vrc_tools.editor
         private void EnsureStyles()
         {
             if (headerStyle == null)
-                headerStyle = new GUIStyle(EditorStyles.boldLabel) { fontSize = 14, richText = true };
+                headerStyle = new GUIStyle(EditorStyles.boldLabel)
+                {
+                    fontSize = 14,
+                    richText = true,
+                };
             if (assetStyle == null)
                 assetStyle = new GUIStyle(EditorStyles.label) { wordWrap = true };
             if (buttonStyle == null)
@@ -117,7 +129,10 @@ namespace raspichu.vrc_tools.editor
             Rect dropArea = EditorGUILayout.GetControlRect(false, 20, GUILayout.ExpandWidth(true));
             GUI.Label(dropArea, "Targets <size=10>(drag and drop)</size>", headerStyle);
 
-            if ((evt.type == EventType.DragUpdated || evt.type == EventType.DragPerform) && dropArea.Contains(evt.mousePosition))
+            if (
+                (evt.type == EventType.DragUpdated || evt.type == EventType.DragPerform)
+                && dropArea.Contains(evt.mousePosition)
+            )
             {
                 DragAndDrop.visualMode = DragAndDropVisualMode.Copy;
 
@@ -143,7 +158,8 @@ namespace raspichu.vrc_tools.editor
             {
                 EditorGUILayout.BeginHorizontal();
 
-                GameObject newTarget = (GameObject)EditorGUILayout.ObjectField(targetObjects[i], typeof(GameObject), true);
+                GameObject newTarget = (GameObject)
+                    EditorGUILayout.ObjectField(targetObjects[i], typeof(GameObject), true);
                 if (newTarget != targetObjects[i])
                 {
                     targetObjects[i] = newTarget;
@@ -188,14 +204,25 @@ namespace raspichu.vrc_tools.editor
                 // Original Material (disabled)
                 EditorGUILayout.LabelField("Original", GUILayout.Width(60));
                 EditorGUI.BeginDisabledGroup(true);
-                EditorGUILayout.ObjectField(originalMat, typeof(Material), false, GUILayout.Width(180));
+                EditorGUILayout.ObjectField(
+                    originalMat,
+                    typeof(Material),
+                    false,
+                    GUILayout.Width(180)
+                );
                 EditorGUI.EndDisabledGroup();
 
                 EditorGUILayout.Space(10);
 
                 // Replacement Material
                 EditorGUILayout.LabelField("Replace", GUILayout.Width(60));
-                var newMat = (Material)EditorGUILayout.ObjectField(materialMap[originalMat], typeof(Material), false, GUILayout.ExpandWidth(true));
+                var newMat = (Material)
+                    EditorGUILayout.ObjectField(
+                        materialMap[originalMat],
+                        typeof(Material),
+                        false,
+                        GUILayout.ExpandWidth(true)
+                    );
                 if (newMat != materialMap[originalMat])
                 {
                     materialMap[originalMat] = newMat;
@@ -212,7 +239,8 @@ namespace raspichu.vrc_tools.editor
 
         private void ReplaceMaterial(Material original, Material replacement)
         {
-            if (!materialUsages.ContainsKey(original) || replacement == null) return;
+            if (!materialUsages.ContainsKey(original) || replacement == null)
+                return;
 
             foreach (var usage in materialUsages[original])
             {
