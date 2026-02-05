@@ -23,7 +23,8 @@ namespace raspichu.vrc_tools.editor
         Uploading,
         Uploaded,
         Failed,
-        Cancelled
+        Cancelled,
+        Unknown,
     }
 
     public class BulkUpload : EditorWindow
@@ -45,6 +46,20 @@ namespace raspichu.vrc_tools.editor
         private bool isAvatarUploadingAll = false;
         private bool isAvatarUploadingCancelled = false;
         private string currentAvatarName = "";
+
+        private static readonly Dictionary<AvatarUploadStatus, Color> StatusColors = new Dictionary<AvatarUploadStatus, Color>
+            {
+                { AvatarUploadStatus.Ready,     new Color(0.77f, 0.76f, 0.82f, 1f) }, // Lavender
+                { AvatarUploadStatus.Waiting,   new Color(1f, 0.65f, 0f, 1f) },       // Orange
+                { AvatarUploadStatus.Building,  new Color(0.53f, 0.81f, 0.98f, 1f) }, // Sky Blue
+                { AvatarUploadStatus.Uploading, new Color(0.53f, 0.81f, 0.98f, 1f) }, // Sky Blue
+                { AvatarUploadStatus.Uploaded,  new Color(0.31f, 0.85f, 0.4f, 1f) },  // Greenish
+                { AvatarUploadStatus.Failed,    new Color(1f, 0f, 0f, 1f) },          // Red
+                { AvatarUploadStatus.Cancelled, new Color(1f, 0f, 0f, 1f) },           // Red
+                { AvatarUploadStatus.Unknown,   new Color(0.77f, 0.76f, 0.82f, 1f) }  // Lavender
+            };
+
+        private StatusPopup statusPopup;
 
         [MenuItem("Window/Pichu/Bulk Upload")]
         public static void ShowWindow()
@@ -121,9 +136,7 @@ namespace raspichu.vrc_tools.editor
                 EditorGUI.BeginDisabledGroup(isAvatarUploading || !isBuilderPresent); // Disable group for Upload button
                 if (GUILayout.Button("Upload", GUILayout.Width(80)))
                 {
-                    isAvatarUploading = true;
-                    await UploadAvatar(avatar);
-                    isAvatarUploading = false;
+                    UploadSingleAvatar(avatar);
                 }
                 EditorGUI.EndDisabledGroup(); // End disable group for Upload button
 
@@ -154,12 +167,12 @@ namespace raspichu.vrc_tools.editor
 
             // Filter the results to only include objects that are active and not have a ignore tag (Is created by the Utils.UnityBuild process)
             avatarsDescriptor = avatarsDescriptor
-            .Where(descriptor =>
-                descriptor.gameObject.scene.isLoaded &&
-                descriptor.gameObject.activeInHierarchy &&
-                !descriptor.gameObject.name.Contains("(Clone)") &&
-                !descriptor.gameObject.name.Contains("VRCF Test Copy for")
-            )
+                .Where(descriptor =>
+                    descriptor.gameObject.scene.isLoaded &&
+                    descriptor.gameObject.activeInHierarchy &&
+                    !descriptor.gameObject.name.Contains("(Clone)") &&
+                    !descriptor.gameObject.name.Contains("VRCF Test Copy for")
+                )
             .ToArray()
             .OrderBy(descriptor => GetHierarchyPath(descriptor.gameObject.transform))
                 .ToArray();
@@ -194,35 +207,35 @@ namespace raspichu.vrc_tools.editor
             switch (status)
             {
                 case AvatarUploadStatus.Ready:
-                    GUI.contentColor = new Color(0.77f, 0.76f, 0.82f, 1); // Lavender
+                    GUI.contentColor = StatusColors[AvatarUploadStatus.Ready];
                     GUILayout.Label($"[Ready] {avatarName}");
                     break;
                 case AvatarUploadStatus.Waiting:
-                    GUI.contentColor = new Color(1, 0.65f, 0, 1); // Orange
+                    GUI.contentColor = StatusColors[AvatarUploadStatus.Waiting];
                     GUILayout.Label($"[Waiting] {avatarName}");
                     break;
                 case AvatarUploadStatus.Building:
-                    GUI.contentColor = new Color(0.53f, 0.81f, 0.98f, 1); // Sky Blue
+                    GUI.contentColor = StatusColors[AvatarUploadStatus.Building];
                     GUILayout.Label($"[Building] {avatarName} ({date:HH:mm:ss})");
                     break;
                 case AvatarUploadStatus.Uploading:
-                    GUI.contentColor = new Color(0.53f, 0.81f, 0.98f, 1); // Sky Blue
+                    GUI.contentColor = StatusColors[AvatarUploadStatus.Uploading];
                     GUILayout.Label($"[Uploading] {avatarName} ({date:HH:mm:ss})");
                     break;
                 case AvatarUploadStatus.Uploaded:
-                    GUI.contentColor = new Color(0.31f, 0.85f, 0.4f, 1); // Greenish
+                    GUI.contentColor = StatusColors[AvatarUploadStatus.Uploaded];
                     GUILayout.Label($"[Uploaded] {avatarName} ({date:HH:mm:ss})");
                     break;
                 case AvatarUploadStatus.Failed:
-                    GUI.contentColor = new Color(1, 0, 0, 1); // Red
+                    GUI.contentColor = StatusColors[AvatarUploadStatus.Failed];
                     GUILayout.Label($"[Failed] {avatarName} ({date:HH:mm:ss})");
                     break;
                 case AvatarUploadStatus.Cancelled:
-                    GUI.contentColor = new Color(1, 0, 0, 1); // Red
+                    GUI.contentColor = StatusColors[AvatarUploadStatus.Cancelled];
                     GUILayout.Label($"[Cancelled] {avatarName} ({date:HH:mm:ss})");
                     break;
                 default:
-                    GUI.contentColor = new Color(0.77f, 0.76f, 0.82f, 1); // Lavender
+                    GUI.contentColor = StatusColors[AvatarUploadStatus.Unknown];
                     GUILayout.Label($"[Unknown] {avatarName} ({date:HH:mm:ss})");
                     break;
             }
@@ -322,8 +335,36 @@ namespace raspichu.vrc_tools.editor
 #endif
         }
 
+        private async void UploadSingleAvatar(VRCAvatarDescriptor avatar)
+        {
+
+            if (avatar == null)
+            {
+                Debug.LogError("Avatar is null");
+                return;
+            }
+
+            if (statusPopup == null)
+                statusPopup = StatusPopup.Open("Bulk upload");
+
+            statusPopup.UpdateStatus("Uploading avatar: " + avatar.gameObject.name, StatusColors[AvatarUploadStatus.Uploading]);
+
+            isAvatarUploading = true;
+            await UploadAvatar(avatar);
+            isAvatarUploading = false;
+            statusPopup.UpdateStatus("Avatar upload completed", StatusColors[AvatarUploadStatus.Uploaded]);
+
+            CommonEditor.ShowNotification($"", true);
+
+        }
+
         private async void UploadAllAvatars()
         {
+            if (statusPopup == null)
+                statusPopup = StatusPopup.Open("Bulk upload");
+            
+            statusPopup.UpdateStatus("Starting bulk upload...", StatusColors[AvatarUploadStatus.Uploading]);
+            
 
             fixedAvatarsDescriptor = GetAvatarDescriptorList();
 
@@ -335,6 +376,10 @@ namespace raspichu.vrc_tools.editor
             }
             foreach (var avatar in fixedAvatarsDescriptor)
             {
+                statusPopup.UpdateStatus(
+                    $"Uploading avatar: {avatar.gameObject.name} ({Array.IndexOf(fixedAvatarsDescriptor, avatar) + 1}/{fixedAvatarsDescriptor.Length})",
+                    StatusColors[AvatarUploadStatus.Uploading]
+                );
                 // Disable every avatar except the current one, this helps performance on uploading on some cases
                 foreach (var otherAvatar in fixedAvatarsDescriptor)
                 {
@@ -364,8 +409,10 @@ namespace raspichu.vrc_tools.editor
 
             isAvatarUploading = false;
             isAvatarUploadingAll = false;
-            Debug.Log("All avatars uploaded");
             isAvatarUploadingCancelled = false;
+            Debug.Log("All avatars uploaded");
+            statusPopup.UpdateStatus("Bulk upload completed", StatusColors[AvatarUploadStatus.Uploaded]);
+            CommonEditor.ShowNotification("", true);
         }
 
         private void SetAvatarStatus(string avatarName, AvatarUploadStatus status)
