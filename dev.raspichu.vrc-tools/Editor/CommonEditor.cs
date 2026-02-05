@@ -89,8 +89,25 @@ public class StatusPopup : EditorWindow
     public static StatusPopup Open(string title)
     {
         StatusPopup window = GetWindow<StatusPopup>(true, title, true);
-        window.minSize = new Vector2(400, 80);
-        window.maxSize = new Vector2(400, 80);
+
+        float width = 400;
+        float height = 80;
+        float taskbarMargin = 50f; // Gap to avoid being hidden by the taskbar
+
+        // 1. Get screen resolution
+        Resolution res = Screen.currentResolution;
+
+        // 2. Calculate position (Bottom Right)
+        // We subtract a small margin (e.g., 10px or 40px for taskbar) if needed,
+        // but for absolute corner:
+        float x = res.width - width;
+        float y = res.height - height - taskbarMargin;
+
+        // 3. Set sizes and position
+        window.minSize = new Vector2(width, height);
+        window.maxSize = new Vector2(width, height);
+        window.position = new Rect(x, y, width, height);
+
         window.ShowUtility();
 
         // Registering the update event in the editor

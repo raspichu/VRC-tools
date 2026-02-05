@@ -422,9 +422,9 @@ namespace raspichu.vrc_tools.editor
 
 
                 SetAvatarStatus(avatar.gameObject.name, AvatarUploadStatus.Building);
-                await UploadAvatar(avatar);
                 // Wait a short delay
                 await Task.Delay(1000);
+                await UploadAvatar(avatar);
 
                 if (isAvatarUploadingCancelled)
                 {
