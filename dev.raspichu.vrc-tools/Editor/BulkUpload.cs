@@ -1,5 +1,6 @@
 using UnityEngine;
 using UnityEditor;
+using UnityEditorInternal;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
@@ -58,6 +59,35 @@ namespace raspichu.vrc_tools.editor
                 { AvatarUploadStatus.Cancelled, new Color(1f, 0f, 0f, 1f) },           // Red
                 { AvatarUploadStatus.Unknown,   new Color(0.77f, 0.76f, 0.82f, 1f) }  // Lavender
             };
+
+
+        private const string ShowPopupKey = "Pichu_ShowUploadPopup";
+
+        // Property: Handles both loading and saving automatically
+        private static bool ShowUploadPopup
+        {
+            get => EditorPrefs.GetBool(ShowPopupKey, true);
+            set => EditorPrefs.SetBool(ShowPopupKey, value);
+        }
+
+        [MenuItem("Tools/Pichu/Options/Bulk Upload Popup")]
+        private static void ToggleUploadPopup()
+        {
+            // This single line both inverts the value and saves it to EditorPrefs
+            // because it triggers the 'set' block of the property above.
+            ShowUploadPopup = !ShowUploadPopup;
+            
+            // Refreshing the UI ensures the checkmark updates immediately
+            UnityEditorInternal.InternalEditorUtility.RepaintAllViews();
+        }
+
+        [MenuItem("Tools/Pichu/Options/Bulk Upload Popup", true)]
+        private static bool ToggleUploadPopupValidate()
+        {
+            // The 'get' block is called here to decide if the checkmark is shown
+            Menu.SetChecked("Tools/Pichu/Options/Bulk Upload Popup", ShowUploadPopup);
+            return true;
+        }
 
         private StatusPopup statusPopup;
 
@@ -344,7 +374,7 @@ namespace raspichu.vrc_tools.editor
                 return;
             }
 
-            if (statusPopup == null)
+            if (statusPopup == null && ShowUploadPopup)
                 statusPopup = StatusPopup.Open("Bulk upload");
 
             statusPopup.UpdateStatus("Uploading avatar: " + avatar.gameObject.name, StatusColors[AvatarUploadStatus.Uploading]);
@@ -360,7 +390,7 @@ namespace raspichu.vrc_tools.editor
 
         private async void UploadAllAvatars()
         {
-            if (statusPopup == null)
+            if (statusPopup == null && ShowUploadPopup)
                 statusPopup = StatusPopup.Open("Bulk upload");
             
             statusPopup.UpdateStatus("Starting bulk upload...", StatusColors[AvatarUploadStatus.Uploading]);

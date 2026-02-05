@@ -37,6 +37,10 @@ Avatars that don't have blueprint attached will give an error.
 1. Open the window navigating to `Window -> Pichu -> Bulk Upload`
 2. Press `Upload All (X)`
 
+A small "always-on-top" window shows real-time upload.
+If you prefer not to use the popup, you can disable it here:
+* Navigate to `Tools -> Pichu -> Options -> Bulk Upload Popup`
+
 ### Enforce Blendshape
 The Enforce Blendshape tool ensures that a specified blendshape is consistently applied across the selected mesh, it will apply the blendshape to the mesh and remove it so no animation will change it.
 
