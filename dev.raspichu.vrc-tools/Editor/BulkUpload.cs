@@ -377,12 +377,12 @@ namespace raspichu.vrc_tools.editor
             if (statusPopup == null && ShowUploadPopup)
                 statusPopup = StatusPopup.Open("Bulk upload");
 
-            statusPopup.UpdateStatus("Uploading avatar: " + avatar.gameObject.name, StatusColors[AvatarUploadStatus.Uploading]);
+            statusPopup?.UpdateStatus("Uploading avatar: " + avatar.gameObject.name, StatusColors[AvatarUploadStatus.Uploading]);
 
             isAvatarUploading = true;
             await UploadAvatar(avatar);
             isAvatarUploading = false;
-            statusPopup.UpdateStatus("Avatar upload completed", StatusColors[AvatarUploadStatus.Uploaded]);
+            statusPopup?.UpdateStatus("Avatar upload completed", StatusColors[AvatarUploadStatus.Uploaded]);
 
             CommonEditor.ShowNotification($"", true);
 
@@ -393,7 +393,7 @@ namespace raspichu.vrc_tools.editor
             if (statusPopup == null && ShowUploadPopup)
                 statusPopup = StatusPopup.Open("Bulk upload");
             
-            statusPopup.UpdateStatus("Starting bulk upload...", StatusColors[AvatarUploadStatus.Uploading]);
+            statusPopup?.UpdateStatus("Starting bulk upload...", StatusColors[AvatarUploadStatus.Uploading]);
             
 
             fixedAvatarsDescriptor = GetAvatarDescriptorList();
@@ -406,7 +406,7 @@ namespace raspichu.vrc_tools.editor
             }
             foreach (var avatar in fixedAvatarsDescriptor)
             {
-                statusPopup.UpdateStatus(
+                statusPopup?.UpdateStatus(
                     $"Uploading avatar: {avatar.gameObject.name} ({Array.IndexOf(fixedAvatarsDescriptor, avatar) + 1}/{fixedAvatarsDescriptor.Length})",
                     StatusColors[AvatarUploadStatus.Uploading]
                 );
@@ -441,7 +441,7 @@ namespace raspichu.vrc_tools.editor
             isAvatarUploadingAll = false;
             isAvatarUploadingCancelled = false;
             Debug.Log("All avatars uploaded");
-            statusPopup.UpdateStatus("Bulk upload completed", StatusColors[AvatarUploadStatus.Uploaded]);
+            statusPopup?.UpdateStatus("Bulk upload completed", StatusColors[AvatarUploadStatus.Uploaded]);
             CommonEditor.ShowNotification("", true);
         }
 
