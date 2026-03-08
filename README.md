@@ -100,6 +100,22 @@ You can filter by a specific property and view which materials have it.
 3. Enter the property name you want to search for.
 4. Press **Search** to populate the list of materials.
 
+### New Bone Parent From Selected
+
+Creates a `Bone_Group` from the current bone selection and rebuilds the selected hierarchy as `Fake_*` bones tagged `EditorOnly`.
+The goal is to centralize separated `VRCPhysBone` components into one parent without having to edit the FBX armature.
+
+1. Select one or more bones in the Hierarchy.
+2. Run:
+   - `Tools -> Pichu -> New Bone Parent From Selected`
+   - or right-click in Hierarchy -> `Pichu -> New Bone Parent From Selected`
+3. Result:
+   - One `Bone_Group` is created.
+   - Selected roots are cloned under `Bone_Group` as `Fake_*`.
+   - The first selected `VRCPhysBone` is copied to `Bone_Group`.
+   - All `VRCPhysBone` components are removed from the selected bones.
+   - A `ModularAvatarBoneProxy` is added/updated on selected bones (if Modular Avatar is installed).
+
 
 
 ## Installation
