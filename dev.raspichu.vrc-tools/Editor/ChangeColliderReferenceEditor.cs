@@ -191,10 +191,30 @@ namespace raspichu.vrc_tools.editor
             EditorGUILayout.Space();
 
             EditorGUILayout.LabelField("Advanced", EditorStyles.boldLabel);
-            constraintZeroToAutoProp.boolValue = EditorGUILayout.Toggle(
-                "Constraint 0 to Auto",
-                constraintZeroToAutoProp.boolValue
+            EditorGUILayout.BeginVertical("box");
+            EditorGUILayout.LabelField("Constraint Alignment (Source 0)", EditorStyles.boldLabel);
+
+            EditorGUILayout.HelpBox(
+                "Click the button to move Constraint Source 0 to the current position and rotation of the colliders. "
+                    + "The checkbox below toggles whether this alignment happens automatically when applying collider changes.",
+                MessageType.Info
             );
+
+            EditorGUILayout.PropertyField(
+                constraintZeroToAutoProp,
+                new GUIContent(
+                    "Auto-align on Apply",
+                    "If enabled, applying collider changes will automatically align constraint sources."
+                )
+            );
+
+            if (GUILayout.Button("Align Constraint 0 Positions"))
+            {
+                // Record undo for the target objects before the method modifies them
+                Undo.RecordObject(target, "Manual Constraint Alignment");
+                ((ChangeColliderReference)target).AlignConstraintSourcesToColliders();
+            }
+            EditorGUILayout.EndVertical();
 
             serializedObject.ApplyModifiedProperties();
         }
