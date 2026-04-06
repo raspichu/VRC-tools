@@ -401,7 +401,7 @@ MonoBehaviour:
     type: 102
     parameter:
       name: HandColliderR
-    value: 2
+    value: 1
     style: 0
     subMenu: {fileID: 0}
     subParameters: []
@@ -851,7 +851,7 @@ MonoBehaviour:
     type: 102
     parameter:
       name: HandColliderR
-    value: 1
+    value: 2
     style: 0
     subMenu: {fileID: 0}
     subParameters: []
