@@ -12,6 +12,10 @@ namespace raspichu.vrc_tools.editor
         // Temporary list to store the recently imported assets
         private static string[] lastImportedAssets;
 
+        //  Queue to handle multiple imports in quick succession
+        private static Queue<(string name, string[] assets)> importQueue =
+            new Queue<(string, string[])>();
+
         static AutoPackageSorter()
         {
             // This is called when a package import is completed
@@ -25,24 +29,34 @@ namespace raspichu.vrc_tools.editor
                 return;
             }
 
-            // We open the window and pass the assets that were imported in the last operation
             if (lastImportedAssets != null && lastImportedAssets.Length > 0)
             {
-                // Si ya están dentro de carpetas __Category__, ignorar
                 if (IsAlreadySorted(lastImportedAssets, PackageSorterCategories.Categories))
                 {
                     lastImportedAssets = null;
                     return;
                 }
 
-                PackageSorterWindow window = EditorWindow.GetWindow<PackageSorterWindow>();
-                window.titleContent = new GUIContent("Package Sorter");
-                window.SetPackage(packageName, lastImportedAssets);
-                window.Show();
+                importQueue.Enqueue((packageName, lastImportedAssets));
+
+                if (!EditorWindow.HasOpenInstances<PackageSorterWindow>())
+                {
+                    ShowNextInQueue();
+                }
             }
 
-            // We clear the list for the next import
             lastImportedAssets = null;
+        }
+
+        public static void ShowNextInQueue()
+        {
+            if (importQueue.Count > 0)
+            {
+                var data = importQueue.Dequeue();
+                var window = EditorWindow.GetWindow<PackageSorterWindow>();
+                window.SetPackage(data.name, data.assets);
+                window.Show();
+            }
         }
 
         static void OnPostprocessAllAssets(
@@ -364,7 +378,17 @@ namespace raspichu.vrc_tools.editor
             }
 
             AssetDatabase.Refresh();
-            Close();
+            CloseAndContinue();
+        }
+
+        private void CloseAndContinue()
+        {
+            packageName = null;
+            AutoPackageSorter.ShowNextInQueue();
+            if (string.IsNullOrEmpty(packageName))
+            {
+                Close();
+            }
         }
     }
 
