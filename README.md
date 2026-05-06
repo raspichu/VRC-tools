@@ -115,8 +115,18 @@ The goal is to centralize separated `VRCPhysBone` components into one parent wit
    - The first selected `VRCPhysBone` is copied to `Bone_Group`.
    - All `VRCPhysBone` components are removed from the selected bones.
    - A `ModularAvatarBoneProxy` is added/updated on selected bones (if Modular Avatar is installed).
+  
+### Batch Package Importer
 
+This tool allows you to import multiple `.unitypackage` files and ZIP archives at once.
 
+1. Open the window navigating to `Window -> Pichu -> Batch Package Importer`.
+2. **Add Files:**
+   - Drag and drop `.unitypackage` or `.zip` files into the **FILE DROP AREA**.
+   - Or press the **Browse Files...** button to select them manually.
+3. **ZIP Handling:** 
+   - If a ZIP file is added, the tool automatically scans it for internal packages. 
+   - Use the foldout arrow to see the `.unitypackage` files inside and use the checkboxes to select only the ones you want to import.
 
 ## Installation
 1. **VCC Listing**

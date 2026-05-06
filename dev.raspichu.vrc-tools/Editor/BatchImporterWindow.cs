@@ -344,7 +344,7 @@ namespace raspichu.vrc_tools.editor
             finally
             {
                 isProcessing = false;
-                Close();
+                // Close();
             }
         }
 

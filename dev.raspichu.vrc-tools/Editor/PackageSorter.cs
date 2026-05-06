@@ -53,8 +53,43 @@ namespace raspichu.vrc_tools.editor
             if (importQueue.Count > 0)
             {
                 var data = importQueue.Dequeue();
+
+                // --- PRE-SORT FIX: Validate paths before opening the window ---
+                List<string> validatedAssets = new List<string>();
+
+                foreach (string originalPath in data.assets)
+                {
+                    // If the file still exists in its original place, we keep it
+                    if (File.Exists(Path.GetFullPath(originalPath)))
+                    {
+                        validatedAssets.Add(originalPath);
+                    }
+                    // If it doesn't exist, we assume it was already moved/sorted
+                    // by a previous package and we ignore it.
+                }
+
+                // If NO assets are left to be sorted, skip this window and check the next package
+                if (validatedAssets.Count == 0)
+                {
+                    Debug.Log(
+                        $"[PackageSorter] Skipping '{data.name}' as all its assets were already moved."
+                    );
+                    ShowNextInQueue();
+                    return;
+                }
+                else
+                {
+                    Debug.Log(
+                        $"[PackageSorter] Showing sorting window for '{data.name}' with {validatedAssets.Count} valid assets."
+                    );
+                }
+
+                // Open the window only if there are assets left to sort
                 var window = EditorWindow.GetWindow<PackageSorterWindow>();
-                window.SetPackage(data.name, data.assets);
+                window.titleContent = new GUIContent("Package Sorter");
+
+                // Pass the cleaned list
+                window.SetPackage(data.name, validatedAssets.ToArray());
                 window.Show();
             }
         }
@@ -141,7 +176,7 @@ namespace raspichu.vrc_tools.editor
 
         public void SetPackage(string name, string[] assets)
         {
-            packageName = name;
+            packageName = Path.GetFileNameWithoutExtension(name);
             importedAssets = assets;
         }
 
@@ -221,7 +256,7 @@ namespace raspichu.vrc_tools.editor
 
             if (GUILayout.Button("Cancel", buttonStyle, GUILayout.Height(30)))
             {
-                Close();
+                CloseAndContinue();
             }
             EditorGUILayout.EndHorizontal();
         }
@@ -280,21 +315,35 @@ namespace raspichu.vrc_tools.editor
 
         void DeleteEmptyFolders(string folderPath)
         {
-            if (!AssetDatabase.IsValidFolder(folderPath))
+            if (string.IsNullOrEmpty(folderPath) || !AssetDatabase.IsValidFolder(folderPath))
                 return;
 
-            // Get subfolders
+            // 1. Recursive call: clean children first
             string[] subFolders = AssetDatabase.GetSubFolders(folderPath);
             foreach (var sub in subFolders)
             {
                 DeleteEmptyFolders(sub);
             }
 
-            // If folder is empty, delete it
-            string[] assets = AssetDatabase.FindAssets("", new[] { folderPath });
-            if (assets.Length == 0)
+            // 2. Check if the folder is empty of assets
+            // We use System.IO to be 100% sure there are no files left
+            string absolutePath = Path.GetFullPath(folderPath);
+            if (Directory.Exists(absolutePath))
             {
-                AssetDatabase.DeleteAsset(folderPath);
+                string[] entries = Directory.GetFileSystemEntries(absolutePath);
+
+                // If it's empty (0 entries), delete it through AssetDatabase
+                if (entries.Length == 0)
+                {
+                    AssetDatabase.DeleteAsset(folderPath);
+
+                    // Try to clean the parent as well
+                    string parent = Path.GetDirectoryName(folderPath).Replace("\\", "/");
+                    if (parent.StartsWith("Assets") && parent != "Assets")
+                    {
+                        DeleteEmptyFolders(parent);
+                    }
+                }
             }
         }
 
@@ -312,7 +361,8 @@ namespace raspichu.vrc_tools.editor
             // Decide parsed category/folder name
             string selectedCategoryParsed =
                 selectedCategory == "Custom" ? customFolderInput : $"__{selectedCategory}__";
-            string rootFolder = Path.Combine("Assets", selectedCategoryParsed, finalRoute);
+            string rootFolder = Path.Combine("Assets", selectedCategoryParsed, finalRoute)
+                .Replace("\\", "/");
 
             // Ensure root folder exists
             if (!AssetDatabase.IsValidFolder(rootFolder))
@@ -324,10 +374,15 @@ namespace raspichu.vrc_tools.editor
             // Create the new folder structure and move assets (unchanged logic, but uses selectedCategoryParsed)
             foreach (var assetPath in importedAssets)
             {
-                if (!assetPath.StartsWith("Assets/"))
+                string sanitizedAssetPath = assetPath.Replace("\\", "/");
+
+                if (!sanitizedAssetPath.StartsWith("Assets/"))
                     continue;
 
-                string relativePath = assetPath.Substring("Assets/".Length);
+                if (AssetDatabase.IsValidFolder(sanitizedAssetPath))
+                    continue;
+
+                string relativePath = sanitizedAssetPath.Substring("Assets/".Length);
                 if (relativePath == finalRoute)
                 {
                     continue;
@@ -352,7 +407,7 @@ namespace raspichu.vrc_tools.editor
                     .Replace("\\", "/");
 
                 // Create necessary folders
-                string newFolder = Path.GetDirectoryName(newPath);
+                string newFolder = Path.GetDirectoryName(newPath).Replace("\\", "/");
                 if (!AssetDatabase.IsValidFolder(newFolder))
                 {
                     string[] folders = newFolder.Split('/');
@@ -366,15 +421,14 @@ namespace raspichu.vrc_tools.editor
                     }
                 }
 
-                Debug.Log(
-                    $"[PI] Moving {assetPath} to Assets/{selectedCategoryParsed}/{finalRoute}/{relativePath}"
-                );
+                Debug.Log($"[PI] Moving {sanitizedAssetPath} to {newPath}");
 
-                AssetDatabase.MoveAsset(assetPath, newPath);
+                AssetDatabase.MoveAsset(sanitizedAssetPath, newPath);
             }
             foreach (var assetPath in importedAssets)
             {
-                DeleteEmptyFolders(assetPath);
+                string folderPath = Path.GetDirectoryName(assetPath).Replace("\\", "/");
+                DeleteEmptyFolders(folderPath);
             }
 
             AssetDatabase.Refresh();
