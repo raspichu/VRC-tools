@@ -25,7 +25,7 @@ namespace raspichu.vrc_tools.editor
         private GUIStyle foldoutStyle;
         private GUIStyle warningStyle;
 
-        [MenuItem("Tools/Pichu/Batch Package Importer")]
+        [MenuItem("Window/Pichu/Batch Package Importer")]
         public static void ShowWindow()
         {
             BatchImporterWindow window = GetWindow<BatchImporterWindow>("Batch Importer");
