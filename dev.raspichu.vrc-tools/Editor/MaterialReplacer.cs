@@ -38,14 +38,14 @@ namespace raspichu.vrc_tools.editor
             public Material originalMaterial;
         }
 
-        [MenuItem("Window/Pichu/Material replacer")]
+        [MenuItem("Tools/Pichu/Material replacer", false, 20)]
         private static void OpenWindowFromTopMenu()
         {
             var selected = Selection.gameObjects.ToList();
             ShowWindow(selected);
         }
 
-        [MenuItem("GameObject/Pichu/Material replacer", false, 0)]
+        [MenuItem("GameObject/Pichu/Material replacer", false, 20)]
         private static void OpenWindowFromContext(MenuCommand command)
         {
             // var selected = new List<GameObject> { command.context as GameObject };

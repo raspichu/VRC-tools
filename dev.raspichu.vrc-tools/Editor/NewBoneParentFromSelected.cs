@@ -9,34 +9,27 @@ namespace raspichu.vrc_tools.editor
 {
     public static class NewBoneParentFromSelected
     {
-        private const string ToolsMenuPath = "Tools/Pichu/New Bone Parent From Selected";
-        private const string ContextMenuPath = "GameObject/Pichu/New Bone Parent From Selected";
+        // ### Routes for Simple (Structure Only) Version ###
+        private const string ContextMenuPathSimple = "GameObject/Pichu/New Bone Parent";
 
-        [MenuItem(ToolsMenuPath)]
-        private static void ExecuteFromTools()
+        [MenuItem(ContextMenuPathSimple, false, 40)]
+        private static void ExecuteFromContextSimple(MenuCommand command)
         {
-            ExecuteCore();
+            if (ShouldExecuteForContextCommand(command))
+                ExecuteCore(false);
         }
 
-        [MenuItem(ContextMenuPath, false, 10)]
-        private static void ExecuteFromContext(MenuCommand command)
+        // ### Routes for Full (Hierarchy Cloning) Version ###
+        private const string ContextMenuPathFull =
+            "GameObject/Pichu/New Bone Parent (With Fake Hierarchy)";
+        [MenuItem(ContextMenuPathFull, false, 41)]
+        private static void ExecuteFromContextFull(MenuCommand command)
         {
-            if (!ShouldExecuteForContextCommand(command))
-            {
-                return;
-            }
-
-            ExecuteCore();
+            if (ShouldExecuteForContextCommand(command))
+                ExecuteCore(true);
         }
 
-        [MenuItem(ToolsMenuPath, true)]
-        [MenuItem(ContextMenuPath, true)]
-        private static bool ValidateExecute()
-        {
-            return TryValidateSelection(Selection.transforms, out _);
-        }
-
-        private static void ExecuteCore()
+        private static void ExecuteCore(bool cloneHierarchy)
         {
             Transform[] selected = Selection.transforms;
             if (!TryValidateSelection(selected, out string error))
@@ -52,20 +45,23 @@ namespace raspichu.vrc_tools.editor
             Transform boneGroup = CreateBoneGroup(selected[0]);
             List<Transform> selectedRoots = GetSelectionRoots(selected);
 
-            foreach (Transform root in selectedRoots)
+            if (cloneHierarchy)
             {
-                CloneHierarchy(root, boneGroup, true);
+                foreach (Transform root in selectedRoots)
+                {
+                    CloneHierarchy(root, boneGroup, true);
+                }
             }
 
-            bool copiedPhysBone = CopyFirstPhysBoneAndRemoveAllFromSelection(selected, boneGroup);
+            // bool copiedPhysBone = CopyFirstPhysBoneAndRemoveAllFromSelection(selected, boneGroup);
             int proxiesAssigned = AssignBoneProxies(selected, boneGroup);
 
             Undo.CollapseUndoOperations(undoGroup);
             Selection.activeTransform = boneGroup;
 
             Debug.Log(
-                $"[NewBoneParentFromSelected] Created '{boneGroup.name}', clonedRoots={selectedRoots.Count}, " +
-                $"proxiesAssigned={proxiesAssigned}, physBoneCopied={copiedPhysBone}."
+                $"[NewBoneParentFromSelected] Created '{boneGroup.name}', clonedRoots={selectedRoots.Count}, "
+            // $"proxiesAssigned={proxiesAssigned}, physBoneCopied={copiedPhysBone}."
             );
         }
 
@@ -93,7 +89,7 @@ namespace raspichu.vrc_tools.editor
         private static Transform CreateBoneGroup(Transform firstSelected)
         {
             Transform parent = firstSelected.parent;
-            GameObject group = new GameObject(GetUniqueNameAtLevel(parent, "Bone_Group"));
+            GameObject group = new GameObject(GetUniqueNameAtLevel(parent, "Parent"));
             Undo.RegisterCreatedObjectUndo(group, "Create Bone Group");
 
             Transform t = group.transform;
@@ -172,7 +168,10 @@ namespace raspichu.vrc_tools.editor
             }
         }
 
-        private static bool CopyFirstPhysBoneAndRemoveAllFromSelection(IEnumerable<Transform> selected, Transform target)
+        private static bool CopyFirstPhysBoneAndRemoveAllFromSelection(
+            IEnumerable<Transform> selected,
+            Transform target
+        )
         {
             VRCPhysBone source = null;
 
@@ -216,7 +215,9 @@ namespace raspichu.vrc_tools.editor
 
         private static int AssignBoneProxies(IEnumerable<Transform> selected, Transform target)
         {
-            Type boneProxyType = FindTypeInLoadedAssemblies("nadena.dev.modular_avatar.core.ModularAvatarBoneProxy");
+            Type boneProxyType = FindTypeInLoadedAssemblies(
+                "nadena.dev.modular_avatar.core.ModularAvatarBoneProxy"
+            );
             if (boneProxyType == null)
             {
                 return 0;
@@ -228,12 +229,21 @@ namespace raspichu.vrc_tools.editor
 
             foreach (Transform t in unique)
             {
-                Component proxy = t.GetComponent(boneProxyType) ?? Undo.AddComponent(t.gameObject, boneProxyType);
+                Component proxy =
+                    t.GetComponent(boneProxyType) ?? Undo.AddComponent(t.gameObject, boneProxyType);
 
                 SerializedObject so = new SerializedObject(proxy);
-                bool targetOk = SetObjectReference(so, target, "target") |
-                                SetObjectReference(so, target.gameObject, "targetObject");
-                bool pathOk = SetString(so, subPath, "subPath", "path", "relativePath", "m_SubPath");
+                bool targetOk =
+                    SetObjectReference(so, target, "target")
+                    | SetObjectReference(so, target.gameObject, "targetObject");
+                bool pathOk = SetString(
+                    so,
+                    subPath,
+                    "subPath",
+                    "path",
+                    "relativePath",
+                    "m_SubPath"
+                );
 
                 if (targetOk || pathOk)
                 {
@@ -260,13 +270,20 @@ namespace raspichu.vrc_tools.editor
             return null;
         }
 
-        private static bool SetObjectReference(SerializedObject serialized, UnityEngine.Object value, params string[] names)
+        private static bool SetObjectReference(
+            SerializedObject serialized,
+            UnityEngine.Object value,
+            params string[] names
+        )
         {
             bool changed = false;
             foreach (string name in names)
             {
                 SerializedProperty property = serialized.FindProperty(name);
-                if (property == null || property.propertyType != SerializedPropertyType.ObjectReference)
+                if (
+                    property == null
+                    || property.propertyType != SerializedPropertyType.ObjectReference
+                )
                 {
                     continue;
                 }
@@ -281,7 +298,11 @@ namespace raspichu.vrc_tools.editor
             return changed;
         }
 
-        private static bool SetString(SerializedObject serialized, string value, params string[] names)
+        private static bool SetString(
+            SerializedObject serialized,
+            string value,
+            params string[] names
+        )
         {
             bool changed = false;
             foreach (string name in names)
@@ -321,7 +342,9 @@ namespace raspichu.vrc_tools.editor
 
         private static string ToFakeBoneName(string sourceName)
         {
-            return sourceName.StartsWith("Fake_", StringComparison.Ordinal) ? sourceName : "Fake_" + sourceName;
+            return sourceName.StartsWith("Fake_", StringComparison.Ordinal)
+                ? sourceName
+                : "Fake_" + sourceName;
         }
 
         private static string GetUniqueNameAtLevel(Transform parent, string baseName)
@@ -330,7 +353,8 @@ namespace raspichu.vrc_tools.editor
             {
                 if (parent == null)
                 {
-                    UnityEngine.SceneManagement.Scene scene = UnityEngine.SceneManagement.SceneManager.GetActiveScene();
+                    UnityEngine.SceneManagement.Scene scene =
+                        UnityEngine.SceneManagement.SceneManager.GetActiveScene();
                     foreach (GameObject root in scene.GetRootGameObjects())
                     {
                         if (root.name == name)

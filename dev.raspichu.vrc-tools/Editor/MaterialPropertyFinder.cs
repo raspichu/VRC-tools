@@ -20,7 +20,7 @@ namespace raspichu.vrc_tools.editor
 
         private List<Material> results;
 
-        [MenuItem("Tools/Pichu/Material Property Finder")]
+        [MenuItem("Tools/Pichu/Material Property Finder", false, 21)]
         public static void ShowWindow()
         {
             var window = GetWindow<MaterialPropertyFinder>("Material Property Finder");
@@ -28,7 +28,7 @@ namespace raspichu.vrc_tools.editor
                 window.targetObject = Selection.activeGameObject;
         }
 
-        [MenuItem("GameObject/Pichu/Material Property Finder", false, 49)]
+        [MenuItem("GameObject/Pichu/Material Property Finder", false, 21)]
         public static void ShowWindowContext(MenuCommand command)
         {
             var window = GetWindow<MaterialPropertyFinder>("Material Property Finder");

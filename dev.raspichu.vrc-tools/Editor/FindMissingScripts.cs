@@ -10,7 +10,7 @@ namespace raspichu.vrc_tools.editor
         private List<GameObject> objectsWithMissingScripts = new List<GameObject>();
         private Vector2 scrollPos;
 
-        [MenuItem("Tools/Pichu/Find Missing Scripts In Scene")]
+        [MenuItem("Tools/Pichu/Find Missing Scripts In Scene", false, 60)]
         public static void ShowWindow()
         {
             GetWindow<FindMissingScripts>("Find Missing Scripts");

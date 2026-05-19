@@ -91,7 +91,7 @@ namespace raspichu.vrc_tools.editor
 
         private StatusPopup statusPopup;
 
-        [MenuItem("Window/Pichu/Bulk Upload")]
+        [MenuItem("Tools/Pichu/Bulk Upload", false, 40)]
         public static void ShowWindow()
         {
             BulkUpload window = GetWindow<BulkUpload>("Bulk Upload");
