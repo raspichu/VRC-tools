@@ -190,8 +190,18 @@ namespace raspichu.vrc_tools.editor
             if (changed)
                 FindMaterials(); // Reload if something changes
 
+            EditorGUILayout.BeginHorizontal();
             if (GUILayout.Button("Refresh Materials"))
                 FindMaterials();
+
+            // --- Select All Original Materials Button ---
+            EditorGUI.BeginDisabledGroup(materialUsages.Count == 0);
+            if (GUILayout.Button("Select All Original Materials", buttonStyle))
+            {
+                SelectAllOriginalMaterials();
+            }
+            EditorGUI.EndDisabledGroup();
+            EditorGUILayout.EndHorizontal();
 
             EditorGUILayout.Space();
 
@@ -235,6 +245,27 @@ namespace raspichu.vrc_tools.editor
             }
 
             EditorGUILayout.EndScrollView();
+        }
+
+        private void SelectAllOriginalMaterials()
+        {
+            // Gather all materials from the dictionary keys and filter out nulls/built-in defaults
+            Object[] assetsToSelect = materialUsages
+                .Keys.Where(mat => mat != null && AssetDatabase.Contains(mat))
+                .Cast<Object>()
+                .ToArray();
+
+            if (assetsToSelect.Length > 0)
+            {
+                // Force Unity's project selection to these objects
+                Selection.objects = assetsToSelect;
+                // Ping the first object to auto-scroll the Project view to it
+                EditorGUIUtility.PingObject(assetsToSelect[0]);
+            }
+            else
+            {
+                Debug.LogWarning("No project-saved materials found to select.");
+            }
         }
 
         private void ReplaceMaterial(Material original, Material replacement)
