@@ -1,8 +1,8 @@
-using UnityEngine;
-using UnityEditor;
 using System.Collections.Generic;
 using System.Linq;
 using raspichu.vrc_tools.component;
+using UnityEditor;
+using UnityEngine;
 
 namespace raspichu.vrc_tools.editor
 {
@@ -18,13 +18,18 @@ namespace raspichu.vrc_tools.editor
         private Vector2 scrollPosition;
         private bool showBlendShapeList = true;
 
-        private List<EnforceBlendshape.BlendShapeSelection> allBlendShapeSelections = new List<EnforceBlendshape.BlendShapeSelection>();
+        private List<EnforceBlendshape.BlendShapeSelection> allBlendShapeSelections =
+            new List<EnforceBlendshape.BlendShapeSelection>();
 
         private void OnEnable()
         {
             serializedEnforceBlendshape = new SerializedObject(target);
-            skinnedMeshRendererProp = serializedEnforceBlendshape.FindProperty("skinnedMeshRenderer");
-            blendShapeSelectionsProp = serializedEnforceBlendshape.FindProperty("blendShapeSelections");
+            skinnedMeshRendererProp = serializedEnforceBlendshape.FindProperty(
+                "skinnedMeshRenderer"
+            );
+            blendShapeSelectionsProp = serializedEnforceBlendshape.FindProperty(
+                "blendShapeSelections"
+            );
 
             UpdateBlendShapeSelections();
         }
@@ -41,38 +46,99 @@ namespace raspichu.vrc_tools.editor
 
             if (skinnedMeshRendererProp.objectReferenceValue == null)
             {
-                EditorGUILayout.HelpBox("Skinned Mesh Renderer is not assigned.", MessageType.Warning);
+                EditorGUILayout.HelpBox(
+                    "Skinned Mesh Renderer is not assigned.",
+                    MessageType.Warning
+                );
                 return;
             }
 
             blendShapeSearch = EditorGUILayout.TextField("Search BlendShapes", blendShapeSearch);
 
-            // Toggle for blendshape list
-            showBlendShapeList = EditorGUILayout.Foldout(showBlendShapeList, "BlendShapes List");
+            showBlendShapeList = EditorGUILayout.Foldout(
+                showBlendShapeList,
+                "BlendShapes List",
+                true
+            );
             if (showBlendShapeList)
             {
-                // Begin sub box for blendshape list
+                // Container sub-box
                 EditorGUILayout.BeginVertical(GUI.skin.box);
-                EditorGUILayout.LabelField("BlendShapes", EditorStyles.boldLabel);
-                // Begin scroll view for blendshape list
-                scrollPosition = EditorGUILayout.BeginScrollView(scrollPosition);
 
-                // Display blendshapes
+                // Header with simulated column titles
+                EditorGUILayout.BeginHorizontal();
+                EditorGUILayout.LabelField("BlendShape Name", EditorStyles.boldLabel);
+                EditorGUILayout.LabelField("Enable", EditorStyles.boldLabel, GUILayout.Width(60));
+                EditorGUILayout.LabelField(
+                    "Apply Default",
+                    EditorStyles.boldLabel,
+                    GUILayout.Width(90)
+                );
+                EditorGUILayout.EndHorizontal();
+
+                EditorGUILayout.Space(3);
+
+                // Scroll view start
+                scrollPosition = EditorGUILayout.BeginScrollView(
+                    scrollPosition,
+                    GUILayout.Height(250)
+                );
+
                 for (int i = 0; i < blendShapeSelectionsProp.arraySize; i++)
                 {
                     var blendShapeProp = blendShapeSelectionsProp.GetArrayElementAtIndex(i);
                     var blendShapeNameProp = blendShapeProp.FindPropertyRelative("blendShapeName");
                     var isSelectedProp = blendShapeProp.FindPropertyRelative("isSelected");
+                    var applyAsDefaultProp = blendShapeProp.FindPropertyRelative("applyAsDefault");
 
-                    if (blendShapeNameProp.stringValue.ToLower().Contains(blendShapeSearch.ToLower()))
+                    if (
+                        blendShapeNameProp
+                            .stringValue.ToLower()
+                            .Contains(blendShapeSearch.ToLower())
+                    )
                     {
-                        EditorGUILayout.PropertyField(isSelectedProp, new GUIContent(blendShapeNameProp.stringValue));
+                        EditorGUILayout.BeginHorizontal();
+
+                        // Column 1: BlendShape Name (takes remaining space on the left)
+                        EditorGUILayout.LabelField(blendShapeNameProp.stringValue);
+
+                        // Column 2: "Enable" checkbox centered in its 60px slot
+                        EditorGUILayout.BeginHorizontal(GUILayout.Width(60));
+                        GUILayout.Space(15); // Tiny offset to visually center the toggle under the "Enable" text
+                        isSelectedProp.boolValue = EditorGUILayout.Toggle(
+                            isSelectedProp.boolValue,
+                            GUILayout.Width(20)
+                        );
+                        EditorGUILayout.EndHorizontal();
+
+                        // Column 3: "Apply Default" checkbox centered and grayed out if "Enable" is false
+                        EditorGUILayout.BeginHorizontal(GUILayout.Width(90));
+                        GUILayout.Space(32); // Offset to center the toggle under "Apply Default" text
+
+                        // Start the grayed-out group if the main checkbox is not selected
+                        EditorGUI.BeginDisabledGroup(!isSelectedProp.boolValue);
+
+                        applyAsDefaultProp.boolValue = EditorGUILayout.Toggle(
+                            applyAsDefaultProp.boolValue,
+                            GUILayout.Width(20)
+                        );
+
+                        // End the grayed-out group
+                        EditorGUI.EndDisabledGroup();
+
+                        // Clear the value if it became disabled to maintain data integrity
+                        if (!isSelectedProp.boolValue)
+                        {
+                            applyAsDefaultProp.boolValue = false;
+                        }
+
+                        EditorGUILayout.EndHorizontal();
+
+                        EditorGUILayout.EndHorizontal();
                     }
                 }
 
-                // End scroll view for blendshape list
                 EditorGUILayout.EndScrollView();
-                // End sub box for blendshape list
                 EditorGUILayout.EndVertical();
             }
 
@@ -95,51 +161,46 @@ namespace raspichu.vrc_tools.editor
             if (mesh == null)
                 return;
 
-            // Create a temporary list to hold blendshapes with values greater than 0
-            List<string> blendShapesToRemove = new List<string>();
+            // Clear temporary list and rebuild it completely from scratch
+            allBlendShapeSelections.Clear();
 
-            // Mark blendshapes with value 0 for removal
-            for (int i = 0; i < allBlendShapeSelections.Count; i++)
-            {
-                int blendShapeIndex = mesh.GetBlendShapeIndex(allBlendShapeSelections[i].blendShapeName);
-                if (blendShapeIndex >= 0)
-                {
-                    float weight = enforceBlendshape.skinnedMeshRenderer.GetBlendShapeWeight(blendShapeIndex);
-                    if (weight == 0)
-                    {
-                        blendShapesToRemove.Add(allBlendShapeSelections[i].blendShapeName);
-                    }
-                }
-            }
-
-            // Remove blendshapes with value 0 or that doesn't exist in the mesh
-            allBlendShapeSelections.RemoveAll(selection => blendShapesToRemove.Contains(selection.blendShapeName) || mesh.GetBlendShapeIndex(selection.blendShapeName) == -1);
-
-            // Add new blendshapes with value greater than 0
+            // Loop through EVERY single blendshape present in the mesh, regardless of its current weight
             for (int i = 0; i < mesh.blendShapeCount; i++)
             {
                 string blendShapeName = mesh.GetBlendShapeName(i);
-                float weight = enforceBlendshape.skinnedMeshRenderer.GetBlendShapeWeight(i);
-                if (weight > 0 && !allBlendShapeSelections.Exists(selection => selection.blendShapeName == blendShapeName))
-                {
-                    allBlendShapeSelections.Add(new EnforceBlendshape.BlendShapeSelection
+
+                // Check if this blendshape already had a saved configuration state in the component
+                var existing = enforceBlendshape.blendShapeSelections.FirstOrDefault(selection =>
+                    selection.blendShapeName == blendShapeName
+                );
+
+                allBlendShapeSelections.Add(
+                    new EnforceBlendshape.BlendShapeSelection
                     {
                         blendShapeName = blendShapeName,
-                        isSelected = enforceBlendshape.blendShapeSelections.Exists(selection => selection.blendShapeName == blendShapeName && selection.isSelected)
-                    });
-                }
+                        // Keep the user's toggle state if it existed before. Otherwise, default strictly to false (OFF)
+                        isSelected = existing != null ? existing.isSelected : false,
+                        applyAsDefault = existing != null ? existing.applyAsDefault : false,
+                    }
+                );
             }
 
-            // Apply search filter
-            // enforceBlendshape.blendShapeSelections = new List<EnforceBlendshape.BlendShapeSelection>(allBlendShapeSelections
-            //     .Where(selection => selection.blendShapeName.ToLower().Contains(blendShapeSearch.ToLower())).ToList());
             serializedEnforceBlendshape.Update();
             blendShapeSelectionsProp.arraySize = allBlendShapeSelections.Count;
+
             for (int i = 0; i < allBlendShapeSelections.Count; i++)
             {
                 var blendShapeProp = blendShapeSelectionsProp.GetArrayElementAtIndex(i);
-                blendShapeProp.FindPropertyRelative("blendShapeName").stringValue = allBlendShapeSelections[i].blendShapeName;
+
+                // Force sync every single index slot to maintain total data integrity
+                blendShapeProp.FindPropertyRelative("blendShapeName").stringValue =
+                    allBlendShapeSelections[i].blendShapeName;
+                blendShapeProp.FindPropertyRelative("isSelected").boolValue =
+                    allBlendShapeSelections[i].isSelected;
+                blendShapeProp.FindPropertyRelative("applyAsDefault").boolValue =
+                    allBlendShapeSelections[i].applyAsDefault;
             }
+
             serializedEnforceBlendshape.ApplyModifiedProperties();
         }
     }

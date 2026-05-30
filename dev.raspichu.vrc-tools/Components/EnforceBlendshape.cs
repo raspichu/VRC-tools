@@ -1,8 +1,8 @@
-using UnityEngine;
-using UnityEditor;
 using System.Collections.Generic;
-using VRC.SDKBase;
 using System.Linq;
+using UnityEditor;
+using UnityEngine;
+using VRC.SDKBase;
 
 namespace raspichu.vrc_tools.component
 {
@@ -17,8 +17,8 @@ namespace raspichu.vrc_tools.component
         {
             public string blendShapeName;
             public bool isSelected;
+            public bool applyAsDefault;
         }
-
 
         private void OnValidate()
         {
@@ -61,6 +61,11 @@ namespace raspichu.vrc_tools.component
 
             renderer.sharedMesh = clonedMesh;
 
+            // Track total accumulated vertex displacements applied as default
+            int vertexCount = clonedMesh.vertexCount;
+            Vector3[] totalDefaultDeltaVertices = new Vector3[vertexCount];
+            bool hasAnyDefaultApplied = false;
+
             for (int i = 0; i < blendShapeSelections.Count; i++)
             {
                 var selection = blendShapeSelections[i];
@@ -68,7 +73,9 @@ namespace raspichu.vrc_tools.component
 
                 if (blendShapeIndex == -1)
                 {
-                    Debug.LogError($"BlendShape '{selection.blendShapeName}' not found in the mesh.");
+                    Debug.LogError(
+                        $"BlendShape '{selection.blendShapeName}' not found in the mesh."
+                    );
                     continue;
                 }
 
@@ -78,78 +85,170 @@ namespace raspichu.vrc_tools.component
                     continue;
                 }
 
-
-                // Store original blendshape weight
                 float weight = renderer.GetBlendShapeWeight(blendShapeIndex);
-                originalBlendShapeWeights.Add(i, weight);
 
-                // Get delta vertices, normals, tangents for the blendshape
-                int vertexCount = originalMesh.vertexCount;
-                Vector3[] deltaVertices = new Vector3[vertexCount];
-                Vector3[] deltaNormals = new Vector3[vertexCount];
-                Vector3[] deltaTangents = new Vector3[vertexCount];
+                // FIXED: Process even if weight is 0. If weight is 0, we force it to 100% for the bake default behavior
+                if (selection.applyAsDefault)
+                {
+                    float targetWeight = weight;
+                    if (targetWeight == 0)
+                    {
+                        targetWeight = 100f; // Force 100% effect if user wants it as default base shape
+                    }
 
-                // As a new blendshape
-                // originalMesh.GetBlendShapeFrameVertices(blendShapeIndex, 0, deltaVertices, deltaNormals, deltaTangents);
-                // string newBlendShapeName = "[PI]_" + selection.blendShapeName;
-                // int newBlendShapeIndex = clonedMesh.blendShapeCount; // Get the index of the new blendshape frame
-                // clonedMesh.AddBlendShapeFrame(newBlendShapeName, 100f, deltaVertices, deltaNormals, deltaTangents);
-                // float originalWeight = originalBlendShapeWeights[i];
-                // renderer.SetBlendShapeWeight(blendShapeIndex, 0);
-                // newBlendShapeIndex = clonedMesh.GetBlendShapeIndex(newBlendShapeName);
-                // renderer.SetBlendShapeWeight(newBlendShapeIndex, originalWeight);
-                // Debug.Log($"New blendshape '{newBlendShapeName}' added with weight {originalWeight}.");
+                    // Get delta vertices, normals, tangents for the blendshape
+                    Vector3[] deltaVertices = new Vector3[vertexCount];
+                    Vector3[] deltaNormals = new Vector3[vertexCount];
+                    Vector3[] deltaTangents = new Vector3[vertexCount];
 
-                // Edit mesh directly
-                // originalMesh.GetBlendShapeFrameVertices(blendShapeIndex, 0, deltaVertices, deltaNormals, deltaTangents);
-                // ModifyMeshBlendShape(renderer, blendShapeIndex, deltaVertices, deltaNormals, deltaTangents, weight);
-                // renderer.SetBlendShapeWeight(blendShapeIndex, 0);
+                    clonedMesh.GetBlendShapeFrameVertices(
+                        blendShapeIndex,
+                        0,
+                        deltaVertices,
+                        deltaNormals,
+                        deltaTangents
+                    );
+                    ModifyMeshBlendShape(
+                        renderer,
+                        deltaVertices,
+                        deltaNormals,
+                        deltaTangents,
+                        targetWeight
+                    );
+                    renderer.SetBlendShapeWeight(blendShapeIndex, 0);
 
+                    // Accumulate default displacements to correct other blendshapes later using the active baking weight
+                    float factor = targetWeight / 100f;
+                    for (int v = 0; v < vertexCount; v++)
+                    {
+                        totalDefaultDeltaVertices[v] += deltaVertices[v] * factor;
+                    }
+                    hasAnyDefaultApplied = true;
+                }
 
-                // Add the original blendshape to the list of blendshapes to remove
+                // ALWAYS mark as remove/ignore if it is enabled (isSelected == true), regardless of its weight
                 blendshapesToRemove.Add(selection.blendShapeName);
             }
 
-            // Remove the original blendshapes from the cloned mesh
+            // If defaults were applied, modify RemoveBlendShapes behavior or correct remaining frames here
+            if (hasAnyDefaultApplied)
+            {
+                CorrectRemainingBlendShapeDeltas(
+                    clonedMesh,
+                    blendshapesToRemove,
+                    totalDefaultDeltaVertices
+                );
+            }
+
+            // ALWAYS trigger removal to process renaming to [IGNORED]_ for all enabled selections
             RemoveBlendShapes(renderer, blendshapesToRemove);
 
-            // Apply the cloned mesh with new blendshapes back to the renderer
-
-
-
-            Debug.Log("New blendshapes created and applied to the cloned mesh. Original blendshapes reset.");
+            Debug.Log(
+                "New blendshapes created and applied to the cloned mesh. Original blendshapes reset."
+            );
         }
 
-        private void ModifyMeshBlendShape(SkinnedMeshRenderer renderer, int blendShapeIndex, Vector3[] deltaVertices, Vector3[] deltaNormals, Vector3[] deltaTangents, float weight)
+        // New helper method to subtract applied default deltas from remaining blendshapes to prevent stretching/spikes
+        private void CorrectRemainingBlendShapeDeltas(
+            Mesh mesh,
+            List<string> blendShapesToRemove,
+            Vector3[] totalDefaultDeltaVertices
+        )
         {
+            int blendShapeCount = mesh.blendShapeCount;
+            int vertexCount = mesh.vertexCount;
 
+            // Cache all corrected frames temporarily because we can't modify blendshapes in-place easily
+            var correctedFrames =
+                new List<(string name, Vector3[] dv, Vector3[] dn, Vector3[] dt)>();
+
+            for (int i = 0; i < blendShapeCount; i++)
+            {
+                string name = mesh.GetBlendShapeName(i);
+
+                Vector3[] deltaVertices = new Vector3[vertexCount];
+                Vector3[] deltaNormals = new Vector3[vertexCount];
+                Vector3[] deltaTangents = new Vector3[vertexCount];
+                mesh.GetBlendShapeFrameVertices(i, 0, deltaVertices, deltaNormals, deltaTangents);
+
+                // Only correct shapes that are NOT being removed/ignored
+                if (!blendShapesToRemove.Contains(name))
+                {
+                    for (int v = 0; v < vertexCount; v++)
+                    {
+                        // Subtract the base shift so this shape morphs relative to the new default shape
+                        deltaVertices[v] -= totalDefaultDeltaVertices[v];
+                    }
+                }
+
+                correctedFrames.Add((name, deltaVertices, deltaNormals, deltaTangents));
+            }
+
+            // Clear and rewrite frames with the corrected delta offsets
+            mesh.ClearBlendShapes();
+            foreach (var frame in correctedFrames)
+            {
+                mesh.AddBlendShapeFrame(frame.name, 100f, frame.dv, frame.dn, frame.dt);
+            }
+        }
+
+        private void ModifyMeshBlendShape(
+            SkinnedMeshRenderer renderer,
+            Vector3[] deltaVertices,
+            Vector3[] deltaNormals,
+            Vector3[] deltaTangents,
+            float weight
+        )
+        {
             Mesh mesh = renderer.sharedMesh;
-
-            // Modify mesh vertices, normals, tangents based on the blendshape frame deltas and weight
             Vector3[] vertices = mesh.vertices;
             Vector3[] normals = mesh.normals;
             Vector4[] tangents = mesh.tangents;
 
+            float factor = weight / 100f;
+
             for (int i = 0; i < vertices.Length; i++)
             {
-                vertices[i] += deltaVertices[i] * (weight / 100f);
-                normals[i] += deltaNormals[i] * (weight / 100f);
-                // Tangents modification might need to be adjusted based on your requirements
-                tangents[i] += new Vector4(deltaTangents[i].x * (weight / 100f), deltaTangents[i].y * (weight / 100f), deltaTangents[i].z * (weight / 100f), 0);
+                vertices[i] += deltaVertices[i] * factor;
+                if (normals.Length > 0)
+                    normals[i] += deltaNormals[i] * factor;
+                if (tangents.Length > 0)
+                    tangents[i] += new Vector4(
+                        deltaTangents[i].x * factor,
+                        deltaTangents[i].y * factor,
+                        deltaTangents[i].z * factor,
+                        0
+                    );
             }
 
             mesh.vertices = vertices;
-            mesh.normals = normals;
-            mesh.tangents = tangents;
+            if (normals.Length > 0)
+                mesh.normals = normals;
+            if (tangents.Length > 0)
+                mesh.tangents = tangents;
         }
 
-        private void RemoveBlendShapes(SkinnedMeshRenderer renderer, List<string> blendShapesToRemove)
+        private void RemoveBlendShapes(
+            SkinnedMeshRenderer renderer,
+            List<string> blendShapesToRemove
+        )
         {
             Mesh mesh = renderer.sharedMesh;
 
             // Store the blend shapes to keep
             var blendShapeCount = mesh.blendShapeCount;
-            var blendShapesToKeep = new List<(string name, List<(int index, int frame, Vector3[] deltaVertices, Vector3[] deltaNormals, Vector3[] deltaTangents, float weight)> frameData)>();
+            var blendShapesToKeep =
+                new List<(
+                    string name,
+                    List<(
+                        int index,
+                        int frame,
+                        Vector3[] deltaVertices,
+                        Vector3[] deltaNormals,
+                        Vector3[] deltaTangents,
+                        float weight
+                    )> frameData
+                )>();
 
             // Gather blend shapes that will be kept
             for (int i = 0; i < blendShapeCount; i++)
@@ -163,14 +262,28 @@ namespace raspichu.vrc_tools.component
                 }
 
                 int frameCount = mesh.GetBlendShapeFrameCount(i);
-                var frameData = new List<(int index, int frame, Vector3[] deltaVertices, Vector3[] deltaNormals, Vector3[] deltaTangents, float weight)>();
+                var frameData =
+                    new List<(
+                        int index,
+                        int frame,
+                        Vector3[] deltaVertices,
+                        Vector3[] deltaNormals,
+                        Vector3[] deltaTangents,
+                        float weight
+                    )>();
 
                 for (int frame = 0; frame < frameCount; frame++)
                 {
                     Vector3[] deltaVertices = new Vector3[mesh.vertexCount];
                     Vector3[] deltaNormals = new Vector3[mesh.vertexCount];
                     Vector3[] deltaTangents = new Vector3[mesh.vertexCount];
-                    mesh.GetBlendShapeFrameVertices(i, frame, deltaVertices, deltaNormals, deltaTangents);
+                    mesh.GetBlendShapeFrameVertices(
+                        i,
+                        frame,
+                        deltaVertices,
+                        deltaNormals,
+                        deltaTangents
+                    );
                     float weight = renderer.GetBlendShapeWeight(i);
                     frameData.Add((i, frame, deltaVertices, deltaNormals, deltaTangents, weight));
                 }
@@ -186,7 +299,16 @@ namespace raspichu.vrc_tools.component
             // Re-add the blend shapes
             foreach (var (name, frameData) in blendShapesToKeep)
             {
-                foreach (var (index, frame, deltaVertices, deltaNormals, deltaTangents, weight) in frameData)
+                foreach (
+                    var (
+                        index,
+                        frame,
+                        deltaVertices,
+                        deltaNormals,
+                        deltaTangents,
+                        weight
+                    ) in frameData
+                )
                 {
                     mesh.AddBlendShapeFrame(name, 100f, deltaVertices, deltaNormals, deltaTangents);
                     // Set the weight of the blend shape frame
@@ -195,5 +317,4 @@ namespace raspichu.vrc_tools.component
             }
         }
     }
-
 }
