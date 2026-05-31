@@ -14,6 +14,7 @@ namespace raspichu.vrc_tools.editor
         private SerializedProperty blendShapeSelectionsProp;
 
         private string blendShapeSearch = "";
+        private bool filterActiveWeights = false; // Added filter toggle state
 
         private Vector2 scrollPosition;
         private bool showBlendShapeList = true;
@@ -53,7 +54,16 @@ namespace raspichu.vrc_tools.editor
                 return;
             }
 
+            // Layout horizontal to place the button next to the search bar
+            EditorGUILayout.BeginHorizontal();
             blendShapeSearch = EditorGUILayout.TextField("Search BlendShapes", blendShapeSearch);
+            filterActiveWeights = GUILayout.Toggle(
+                filterActiveWeights,
+                "Weight > 0",
+                "Button",
+                GUILayout.Width(80)
+            );
+            EditorGUILayout.EndHorizontal();
 
             showBlendShapeList = EditorGUILayout.Foldout(
                 showBlendShapeList,
@@ -84,6 +94,9 @@ namespace raspichu.vrc_tools.editor
                     GUILayout.Height(250)
                 );
 
+                // Get reference to renderer for checking weights
+                var smr = skinnedMeshRendererProp.objectReferenceValue as SkinnedMeshRenderer;
+
                 for (int i = 0; i < blendShapeSelectionsProp.arraySize; i++)
                 {
                     var blendShapeProp = blendShapeSelectionsProp.GetArrayElementAtIndex(i);
@@ -91,11 +104,16 @@ namespace raspichu.vrc_tools.editor
                     var isSelectedProp = blendShapeProp.FindPropertyRelative("isSelected");
                     var applyAsDefaultProp = blendShapeProp.FindPropertyRelative("applyAsDefault");
 
-                    if (
-                        blendShapeNameProp
-                            .stringValue.ToLower()
-                            .Contains(blendShapeSearch.ToLower())
-                    )
+                    // Filter by search text
+                    bool matchesSearch = blendShapeNameProp
+                        .stringValue.ToLower()
+                        .Contains(blendShapeSearch.ToLower());
+
+                    // Filter by weight if toggle is active
+                    bool matchesWeight =
+                        !filterActiveWeights || (smr != null && smr.GetBlendShapeWeight(i) > 0f);
+
+                    if (matchesSearch && matchesWeight)
                     {
                         EditorGUILayout.BeginHorizontal();
 
