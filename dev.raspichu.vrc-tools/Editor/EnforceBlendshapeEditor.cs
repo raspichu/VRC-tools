@@ -78,6 +78,8 @@ namespace raspichu.vrc_tools.editor
                 // Header with simulated column titles
                 EditorGUILayout.BeginHorizontal();
                 EditorGUILayout.LabelField("BlendShape Name", EditorStyles.boldLabel);
+                // MINIMAL FIX: Added Weight header label
+                EditorGUILayout.LabelField("Weight", EditorStyles.boldLabel, GUILayout.Width(50));
                 EditorGUILayout.LabelField("Enable", EditorStyles.boldLabel, GUILayout.Width(60));
                 EditorGUILayout.LabelField(
                     "Apply Default",
@@ -120,6 +122,13 @@ namespace raspichu.vrc_tools.editor
                         // Column 1: BlendShape Name (takes remaining space on the left)
                         EditorGUILayout.LabelField(blendShapeNameProp.stringValue);
 
+                        // Get and display current weight directly from SkinnedMeshRenderer
+                        float currentWeight = smr != null ? smr.GetBlendShapeWeight(i) : 0f;
+                        EditorGUILayout.LabelField(
+                            currentWeight.ToString("F0"),
+                            GUILayout.Width(50)
+                        );
+
                         // Column 2: "Enable" checkbox centered in its 60px slot
                         EditorGUILayout.BeginHorizontal(GUILayout.Width(60));
                         GUILayout.Space(15); // Tiny offset to visually center the toggle under the "Enable" text
@@ -150,9 +159,9 @@ namespace raspichu.vrc_tools.editor
                             applyAsDefaultProp.boolValue = false;
                         }
 
-                        EditorGUILayout.EndHorizontal();
+                        EditorGUILayout.EndHorizontal(); // Column 3 end
 
-                        EditorGUILayout.EndHorizontal();
+                        EditorGUILayout.EndHorizontal(); // Row end
                     }
                 }
 

@@ -136,7 +136,8 @@ namespace raspichu.vrc_tools.component
                 CorrectRemainingBlendShapeDeltas(
                     clonedMesh,
                     blendshapesToRemove,
-                    totalDefaultDeltaVertices
+                    totalDefaultDeltaVertices,
+                    renderer // Pasamos el renderer
                 );
             }
 
@@ -152,15 +153,26 @@ namespace raspichu.vrc_tools.component
         private void CorrectRemainingBlendShapeDeltas(
             Mesh mesh,
             List<string> blendShapesToRemove,
-            Vector3[] totalDefaultDeltaVertices
+            Vector3[] totalDefaultDeltaVertices,
+            SkinnedMeshRenderer renderer
         )
         {
             int blendShapeCount = mesh.blendShapeCount;
             int vertexCount = mesh.vertexCount;
 
-            // Cache all corrected frames temporarily because we can't modify blendshapes in-place easily
+            // Nuevo cache capaz de guardar dos frames por Blendshape si hace falta
             var correctedFrames =
-                new List<(string name, Vector3[] dv, Vector3[] dn, Vector3[] dt)>();
+                new List<(
+                    string name,
+                    float currentWeight,
+                    bool needsMidFrame,
+                    Vector3[] midDv,
+                    Vector3[] midDn,
+                    Vector3[] midDt,
+                    Vector3[] endDv,
+                    Vector3[] endDn,
+                    Vector3[] endDt
+                )>();
 
             for (int i = 0; i < blendShapeCount; i++)
             {
@@ -171,24 +183,97 @@ namespace raspichu.vrc_tools.component
                 Vector3[] deltaTangents = new Vector3[vertexCount];
                 mesh.GetBlendShapeFrameVertices(i, 0, deltaVertices, deltaNormals, deltaTangents);
 
-                // Only correct shapes that are NOT being removed/ignored
                 if (!blendShapesToRemove.Contains(name))
                 {
+                    float currentWeight = renderer.GetBlendShapeWeight(i);
+                    float inverseFactor = 1.0f - (currentWeight / 100f);
+
+                    // Si el peso está a medias (ej. 50%), necesitamos un frame intermedio (Checkpoint)
+                    bool needsMidFrame = currentWeight > 0f && currentWeight < 100f;
+
+                    Vector3[] midDv = null,
+                        midDn = null,
+                        midDt = null;
+                    Vector3[] endDv = new Vector3[vertexCount];
+                    Vector3[] endDn = new Vector3[vertexCount];
+                    Vector3[] endDt = new Vector3[vertexCount];
+
+                    // 1. HORNEAR EL ESTADO ACTUAL COMO FRAME INTERMEDIO (Ej: el 50%)
+                    if (needsMidFrame)
+                    {
+                        midDv = new Vector3[vertexCount];
+                        midDn = new Vector3[vertexCount];
+                        midDt = new Vector3[vertexCount];
+
+                        float midMultiplier = currentWeight / 100f;
+                        for (int v = 0; v < vertexCount; v++)
+                        {
+                            // Congelamos el desplazamiento para que en Play Mode no varíe nada respecto a ahora
+                            midDv[v] = deltaVertices[v] * midMultiplier;
+                            midDn[v] = deltaNormals[v] * midMultiplier;
+                            midDt[v] = deltaTangents[v] * midMultiplier;
+                        }
+                    }
+
+                    // 2. APLICAR TU FÓRMULA EXACTA AL FRAME FINAL (100%)
                     for (int v = 0; v < vertexCount; v++)
                     {
-                        // Subtract the base shift so this shape morphs relative to the new default shape
-                        deltaVertices[v] -= totalDefaultDeltaVertices[v];
+                        endDv[v] =
+                            deltaVertices[v] - (totalDefaultDeltaVertices[v] * inverseFactor);
+                        endDn[v] = deltaNormals[v];
+                        endDt[v] = deltaTangents[v];
                     }
-                }
 
-                correctedFrames.Add((name, deltaVertices, deltaNormals, deltaTangents));
+                    correctedFrames.Add(
+                        (
+                            name,
+                            currentWeight,
+                            needsMidFrame,
+                            midDv,
+                            midDn,
+                            midDt,
+                            endDv,
+                            endDn,
+                            endDt
+                        )
+                    );
+                }
+                else
+                {
+                    // Si se va a borrar, lo pasamos intacto (RemoveBlendShapes lo inutilizará igualmente)
+                    correctedFrames.Add(
+                        (
+                            name,
+                            0f,
+                            false,
+                            null,
+                            null,
+                            null,
+                            deltaVertices,
+                            deltaNormals,
+                            deltaTangents
+                        )
+                    );
+                }
             }
 
-            // Clear and rewrite frames with the corrected delta offsets
+            // Clear and rewrite frames
             mesh.ClearBlendShapes();
             foreach (var frame in correctedFrames)
             {
-                mesh.AddBlendShapeFrame(frame.name, 100f, frame.dv, frame.dn, frame.dt);
+                // Si requería curva de compensación, añadimos el checkpoint en su % exacto
+                if (frame.needsMidFrame)
+                {
+                    mesh.AddBlendShapeFrame(
+                        frame.name,
+                        frame.currentWeight,
+                        frame.midDv,
+                        frame.midDn,
+                        frame.midDt
+                    );
+                }
+                // Añadimos el objetivo final
+                mesh.AddBlendShapeFrame(frame.name, 100f, frame.endDv, frame.endDn, frame.endDt);
             }
         }
 
@@ -235,14 +320,13 @@ namespace raspichu.vrc_tools.component
         {
             Mesh mesh = renderer.sharedMesh;
 
-            // Store the blend shapes to keep
             var blendShapeCount = mesh.blendShapeCount;
             var blendShapesToKeep =
                 new List<(
                     string name,
                     List<(
                         int index,
-                        int frame,
+                        float frameWeight, // AHORA RECOGEMOS EL PESO REAL DEL FRAME (CRÍTICO)
                         Vector3[] deltaVertices,
                         Vector3[] deltaNormals,
                         Vector3[] deltaTangents,
@@ -250,22 +334,22 @@ namespace raspichu.vrc_tools.component
                     )> frameData
                 )>();
 
-            // Gather blend shapes that will be kept
             for (int i = 0; i < blendShapeCount; i++)
             {
                 string name = mesh.GetBlendShapeName(i);
+                float weight = renderer.GetBlendShapeWeight(i);
+
                 if (blendShapesToRemove.Contains(name))
                 {
                     name = "[IGNORED]_" + name;
-                    // Debug.Log($"Skipping blendshape: {name}");
-                    // continue;
+                    weight = 0f;
                 }
 
                 int frameCount = mesh.GetBlendShapeFrameCount(i);
                 var frameData =
                     new List<(
                         int index,
-                        int frame,
+                        float frameWeight,
                         Vector3[] deltaVertices,
                         Vector3[] deltaNormals,
                         Vector3[] deltaTangents,
@@ -284,25 +368,26 @@ namespace raspichu.vrc_tools.component
                         deltaNormals,
                         deltaTangents
                     );
-                    float weight = renderer.GetBlendShapeWeight(i);
-                    frameData.Add((i, frame, deltaVertices, deltaNormals, deltaTangents, weight));
-                }
 
-                // mesh.AddBlendShapeFrame(name, weight, deltaVertices, deltaNormals, deltaTangents);
+                    // FIXED: Rescatamos en qué % exacto se había guardado este frame para no aplastar la curva no lineal
+                    float frameWeight = mesh.GetBlendShapeFrameWeight(i, frame);
+
+                    frameData.Add(
+                        (i, frameWeight, deltaVertices, deltaNormals, deltaTangents, weight)
+                    );
+                }
 
                 blendShapesToKeep.Add((name, frameData));
             }
 
-            // Clear the existing blend shapes from the new mesh
             mesh.ClearBlendShapes();
 
-            // Re-add the blend shapes
             foreach (var (name, frameData) in blendShapesToKeep)
             {
                 foreach (
                     var (
                         index,
-                        frame,
+                        frameWeight,
                         deltaVertices,
                         deltaNormals,
                         deltaTangents,
@@ -310,8 +395,14 @@ namespace raspichu.vrc_tools.component
                     ) in frameData
                 )
                 {
-                    mesh.AddBlendShapeFrame(name, 100f, deltaVertices, deltaNormals, deltaTangents);
-                    // Set the weight of the blend shape frame
+                    // Volcamos el frame respetando su porcentaje original en vez del 100f harcodeado
+                    mesh.AddBlendShapeFrame(
+                        name,
+                        frameWeight,
+                        deltaVertices,
+                        deltaNormals,
+                        deltaTangents
+                    );
                     renderer.SetBlendShapeWeight(index, weight);
                 }
             }
