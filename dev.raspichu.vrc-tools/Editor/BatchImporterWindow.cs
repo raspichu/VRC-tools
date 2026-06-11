@@ -15,6 +15,8 @@ namespace raspichu.vrc_tools.editor
             public bool IsZip;
             public Dictionary<string, bool> InternalPackages = new Dictionary<string, bool>();
             public bool IsExpanded = true;
+            public string SortCategory = "None";
+            public string SortCustomFolder = "CustomFolder";
         }
 
         private List<ImportItem> importQueue = new List<ImportItem>();
@@ -216,6 +218,42 @@ namespace raspichu.vrc_tools.editor
                 }
                 EditorGUILayout.Space(2);
             }
+            if (PackageSorterToggle.IsEnabled())
+            {
+                EditorGUILayout.BeginHorizontal();
+                GUILayout.Space(item.IsZip ? 20 : 4);
+                EditorGUILayout.LabelField("Move to:", GUILayout.Width(50));
+                var sortOptions = new[] { "None" }
+                    .Concat(PackageSorterCategories.Categories)
+                    .ToArray();
+                int sortIdx = System.Array.IndexOf(sortOptions, item.SortCategory);
+                if (sortIdx < 0)
+                    sortIdx = 0;
+                item.SortCategory = sortOptions[
+                    EditorGUILayout.Popup(sortIdx, sortOptions, GUILayout.Width(90))
+                ];
+                if (item.SortCategory != "None")
+                {
+                    string destFolder =
+                        item.SortCategory == "Custom"
+                            ? item.SortCustomFolder
+                            : $"__{item.SortCategory}__";
+                    EditorGUILayout.LabelField($"→ Assets/{destFolder}/", EditorStyles.miniLabel);
+                }
+                EditorGUILayout.EndHorizontal();
+
+                if (item.SortCategory == "Custom")
+                {
+                    EditorGUILayout.BeginHorizontal();
+                    GUILayout.Space(item.IsZip ? 20 : 4);
+                    item.SortCustomFolder = EditorGUILayout.TextField(
+                        "Custom:",
+                        item.SortCustomFolder
+                    );
+                    EditorGUILayout.EndHorizontal();
+                }
+            }
+
             EditorGUILayout.EndVertical();
         }
 
@@ -312,8 +350,15 @@ namespace raspichu.vrc_tools.editor
 
             try
             {
+                var batchItems = new List<(string path, string folder)>();
+
                 foreach (var item in importQueue)
                 {
+                    string resolvedFolder =
+                        item.SortCategory == "None" ? null :
+                        item.SortCategory == "Custom" ? item.SortCustomFolder :
+                        $"__{item.SortCategory}__";
+
                     if (item.IsZip)
                     {
                         using (ZipArchive archive = ZipFile.OpenRead(item.SourcePath))
@@ -321,30 +366,31 @@ namespace raspichu.vrc_tools.editor
                             foreach (var entry in archive.Entries)
                             {
                                 if (
-                                    item.InternalPackages.TryGetValue(
-                                        entry.Name,
-                                        out bool isSelected
-                                    ) && isSelected
+                                    item.InternalPackages.TryGetValue(entry.Name, out bool isSelected)
+                                    && isSelected
                                 )
                                 {
                                     string dest = Path.Combine(tempPath, entry.Name);
                                     entry.ExtractToFile(dest, true);
-                                    AssetDatabase.ImportPackage(dest, false);
+                                    batchItems.Add((dest, resolvedFolder));
                                 }
                             }
                         }
                     }
                     else
                     {
-                        AssetDatabase.ImportPackage(item.SourcePath, false);
+                        batchItems.Add((item.SourcePath, resolvedFolder));
                     }
                 }
+
                 importQueue.Clear();
+                // StartBatch drives imports one at a time via the importPackageCompleted callback chain,
+                // so each snapshot is taken after the previous package has been fully processed and sorted.
+                AutoPackageSorter.StartBatch(batchItems);
             }
             finally
             {
                 isProcessing = false;
-                // Close();
             }
         }
 

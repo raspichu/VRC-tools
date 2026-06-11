@@ -9,89 +9,37 @@ namespace raspichu.vrc_tools.editor
     [InitializeOnLoad]
     public class AutoPackageSorter : AssetPostprocessor
     {
-        // Temporary list to store the recently imported assets
-        private static string[] lastImportedAssets;
-
-        //  Queue to handle multiple imports in quick succession
-        private static Queue<(string name, string[] assets)> importQueue =
+        private static List<string> accumulatedAssets = new List<string>();
+        private static bool isImportingPackage = false;
+        private static HashSet<string> preImportFolders = new HashSet<string>();
+        private static Queue<(string name, string[] rootItems)> importQueue =
             new Queue<(string, string[])>();
+
+        // Sequential batch state. ProcessNextBatch fires each import one at a time;
+        // importPackageCompleted drives the next one, preventing shared-state interleaving.
+        private static readonly Queue<(string path, string folder)> pendingBatch =
+            new Queue<(string, string)>();
+        private static string currentBatchFolder;
+        private static HashSet<string> currentBatchSnapshot;
+        private static bool isBatchActive;
 
         static AutoPackageSorter()
         {
-            // This is called when a package import is completed
+            AssetDatabase.importPackageStarted += OnPackageImportStarted;
             AssetDatabase.importPackageCompleted += OnPackageImported;
         }
 
-        private static void OnPackageImported(string packageName)
+        private static void OnPackageImportStarted(string packageName)
         {
-            if (!PackageSorterToggle.IsEnabled())
-            {
-                return;
-            }
-
-            if (lastImportedAssets != null && lastImportedAssets.Length > 0)
-            {
-                if (IsAlreadySorted(lastImportedAssets, PackageSorterCategories.Categories))
-                {
-                    lastImportedAssets = null;
-                    return;
-                }
-
-                importQueue.Enqueue((packageName, lastImportedAssets));
-
-                if (!EditorWindow.HasOpenInstances<PackageSorterWindow>())
-                {
-                    ShowNextInQueue();
-                }
-            }
-
-            lastImportedAssets = null;
-        }
-
-        public static void ShowNextInQueue()
-        {
-            if (importQueue.Count > 0)
-            {
-                var data = importQueue.Dequeue();
-
-                // --- PRE-SORT FIX: Validate paths before opening the window ---
-                List<string> validatedAssets = new List<string>();
-
-                foreach (string originalPath in data.assets)
-                {
-                    // If the file still exists in its original place, we keep it
-                    if (File.Exists(Path.GetFullPath(originalPath)))
-                    {
-                        validatedAssets.Add(originalPath);
-                    }
-                    // If it doesn't exist, we assume it was already moved/sorted
-                    // by a previous package and we ignore it.
-                }
-
-                // If NO assets are left to be sorted, skip this window and check the next package
-                if (validatedAssets.Count == 0)
-                {
-                    Debug.Log(
-                        $"[PackageSorter] Skipping '{data.name}' as all its assets were already moved."
-                    );
-                    ShowNextInQueue();
-                    return;
-                }
-                else
-                {
-                    Debug.Log(
-                        $"[PackageSorter] Showing sorting window for '{data.name}' with {validatedAssets.Count} valid assets."
-                    );
-                }
-
-                // Open the window only if there are assets left to sort
-                var window = EditorWindow.GetWindow<PackageSorterWindow>();
-                window.titleContent = new GUIContent("Package Sorter");
-
-                // Pass the cleaned list
-                window.SetPackage(data.name, validatedAssets.ToArray());
-                window.Show();
-            }
+            accumulatedAssets.Clear();
+            isImportingPackage = true;
+            preImportFolders = new HashSet<string>(
+                Directory
+                    .GetDirectories(Application.dataPath, "*", SearchOption.AllDirectories)
+                    .Select(d =>
+                        "Assets" + d.Substring(Application.dataPath.Length).Replace("\\", "/")
+                    )
+            );
         }
 
         static void OnPostprocessAllAssets(
@@ -101,90 +49,342 @@ namespace raspichu.vrc_tools.editor
             string[] movedFromAssetPaths
         )
         {
-            if (!PackageSorterToggle.IsEnabled())
+            if (!isImportingPackage || !PackageSorterToggle.IsEnabled())
+                return;
+
+            foreach (var asset in importedAssets)
+                accumulatedAssets.Add(asset);
+        }
+
+        private static void OnPackageImported(string packageName)
+        {
+            isImportingPackage = false;
+            Debug.Log($"[PackageSorter] importPackageCompleted: '{packageName}' | isBatchActive={isBatchActive}");
+
+            if (isBatchActive)
             {
+                var snapshot = currentBatchSnapshot;
+                var folder = currentBatchFolder;
+                currentBatchSnapshot = null;
+                currentBatchFolder = null;
+                accumulatedAssets.Clear();
+
+                if (PackageSorterToggle.IsEnabled() && folder != null)
+                {
+                    var newItems = FindNewRootItemsFromSnapshot(snapshot);
+                    Debug.Log($"[PackageSorter] Batch '{packageName}' → folder='{folder}' | newRoots=[{string.Join(", ", newItems)}]");
+                    if (newItems.Length > 0 && !newItems.All(IsInsideCategory))
+                        PerformSort(newItems, folder);
+                }
+                else
+                {
+                    Debug.Log($"[PackageSorter] Batch '{packageName}' → folder=null (None), skipping sort");
+                }
+
+                ProcessNextBatch();
                 return;
             }
 
-            // We save temporarily the imported assets
-            if (importedAssets.Length > 0)
+            if (!PackageSorterToggle.IsEnabled())
             {
-                lastImportedAssets = importedAssets;
+                accumulatedAssets.Clear();
+                return;
             }
+
+            var allAssets = accumulatedAssets.ToArray();
+            accumulatedAssets.Clear();
+
+            if (allAssets.Length == 0)
+            {
+                Debug.Log($"[PackageSorter] Manual '{packageName}' → no accumulated assets, skipping");
+                return;
+            }
+
+            var items = GetItemsToSort(allAssets);
+            Debug.Log($"[PackageSorter] Manual '{packageName}' → rootItems=[{string.Join(", ", items)}]");
+
+            if (items.Length == 0)
+                return;
+
+            if (items.All(IsInsideCategory))
+            {
+                Debug.Log($"[PackageSorter] Manual '{packageName}' → all items already inside category, skipping");
+                return;
+            }
+
+            importQueue.Enqueue((packageName, items));
+
+            if (!EditorWindow.HasOpenInstances<PackageSorterWindow>())
+                ShowNextInQueue();
         }
 
-        private static bool IsAlreadySorted(string[] assets, string[] categories)
+        public static void StartBatch(IEnumerable<(string path, string folder)> items)
         {
+            foreach (var item in items)
+                pendingBatch.Enqueue(item);
+            Debug.Log($"[PackageSorter] StartBatch: {pendingBatch.Count} item(s) queued");
+            if (!isBatchActive)
+                ProcessNextBatch();
+        }
+
+        private static void ProcessNextBatch()
+        {
+            if (pendingBatch.Count == 0)
+            {
+                isBatchActive = false;
+                Debug.Log("[PackageSorter] Batch complete");
+                return;
+            }
+
+            var (path, folder) = pendingBatch.Dequeue();
+            currentBatchSnapshot = TakeFolderSnapshot();
+            currentBatchFolder = folder;
+            isBatchActive = true;
+            Debug.Log($"[PackageSorter] ProcessNextBatch: importing '{Path.GetFileName(path)}' → folder='{folder ?? "None"}'");
+            AssetDatabase.ImportPackage(path, false);
+        }
+
+        private static HashSet<string> TakeFolderSnapshot() =>
+            new HashSet<string>(
+                Directory.GetDirectories(Application.dataPath, "*", SearchOption.AllDirectories)
+                    .Select(d => "Assets" + d.Substring(Application.dataPath.Length).Replace("\\", "/"))
+            );
+
+        private static string[] FindNewRootItemsFromSnapshot(HashSet<string> snapshot)
+        {
+            var current = TakeFolderSnapshot();
+            var newFolders = new HashSet<string>(current.Except(snapshot));
+            return newFolders
+                .Where(f =>
+                {
+                    var parent = Path.GetDirectoryName(f)?.Replace("\\", "/");
+                    return string.IsNullOrEmpty(parent) || !newFolders.Contains(parent);
+                })
+                .ToArray();
+        }
+
+        public static void ShowNextInQueue()
+        {
+            if (importQueue.Count == 0)
+                return;
+
+            var data = importQueue.Dequeue();
+
+            // Filter out items that no longer exist (already moved by a previous sort)
+            var validItems = data.rootItems.Where(item => AssetExists(item)).ToArray();
+
+            if (validItems.Length == 0)
+            {
+                Debug.Log($"[PackageSorter] Skipping '{data.name}' — all items already moved.");
+                ShowNextInQueue();
+                return;
+            }
+
+            var window = EditorWindow.GetWindow<PackageSorterWindow>();
+            window.titleContent = new GUIContent("Package Sorter");
+            window.SetPackage(data.name, validItems);
+            window.Show();
+        }
+
+        private static string[] GetItemsToSort(string[] assets)
+        {
+            var items = new HashSet<string>();
             foreach (var asset in assets)
             {
                 if (!asset.StartsWith("Assets/"))
                     continue;
-
-                // comprobar si el path contiene alguna categoría ya ordenada
-                bool inCategory = categories.Any(cat => asset.Contains($"__{cat}__"));
-                if (!inCategory)
-                    return false; // si al menos uno no está en carpeta de destino, no está completamente ordenado
+                var item = FindNewRoot(asset);
+                if (item != null)
+                    items.Add(item);
             }
-            return true;
+            return items.ToArray();
+        }
+
+        // Walks up the path to find the highest folder that didn't exist before the import.
+        // e.g. if Assets/A/B existed and Assets/A/B/C/file.mat was imported, returns Assets/A/B/C
+        private static string FindNewRoot(string assetPath)
+        {
+            var dir = Path.GetDirectoryName(assetPath)?.Replace("\\", "/");
+            string newRoot = null;
+
+            while (!string.IsNullOrEmpty(dir) && dir.StartsWith("Assets/"))
+            {
+                if (!preImportFolders.Contains(dir))
+                    newRoot = dir;
+                else
+                    break;
+                dir = Path.GetDirectoryName(dir)?.Replace("\\", "/");
+            }
+
+            // File placed directly inside a pre-existing folder — include the file itself
+            if (newRoot == null && !AssetDatabase.IsValidFolder(assetPath))
+                return assetPath;
+
+            return newRoot;
+        }
+
+        public static bool IsInsideCategory(string assetPath)
+        {
+            return PackageSorterCategories
+                .Categories.Where(c => c != "Custom")
+                .Any(cat =>
+                    assetPath == $"Assets/__{cat}__" || assetPath.StartsWith($"Assets/__{cat}__/")
+                );
+        }
+
+        private static bool AssetExists(string assetPath)
+        {
+            var fullPath = Path.GetFullPath(assetPath);
+            return File.Exists(fullPath) || Directory.Exists(fullPath);
+        }
+
+        public static void PerformSort(string[] items, string categoryFolder)
+        {
+            string destRoot = $"Assets/{categoryFolder}";
+            if (!AssetDatabase.IsValidFolder(destRoot))
+                AssetDatabase.CreateFolder("Assets", categoryFolder);
+
+            var movedPaths = new List<string>();
+            foreach (var item in items)
+            {
+                if (!AssetDatabase.IsValidFolder(item) && !File.Exists(Path.GetFullPath(item)))
+                {
+                    Debug.LogWarning($"[PackageSorter] Skipping missing item: {item}");
+                    continue;
+                }
+
+                string relativePath = item.Substring("Assets/".Length);
+                string destPath = $"{destRoot}/{relativePath}";
+
+                if (item == destPath)
+                    continue;
+
+                EnsureFolderExists(Path.GetDirectoryName(destPath).Replace("\\", "/"));
+
+                if (AssetDatabase.IsValidFolder(item) && AssetDatabase.IsValidFolder(destPath))
+                {
+                    // Destination folder already exists — merge contents rather than failing
+                    MergeIntoFolder(item, destPath, movedPaths);
+                }
+                else
+                {
+                    string error = AssetDatabase.MoveAsset(item, destPath);
+                    if (!string.IsNullOrEmpty(error))
+                        Debug.LogError($"[PackageSorter] Failed to move {item} → {destPath}: {error}");
+                    else
+                    {
+                        Debug.Log($"[PackageSorter] Moved {item} → {destPath}");
+                        movedPaths.Add(destPath);
+                    }
+                }
+            }
+
+            AssetDatabase.Refresh();
+
+            if (movedPaths.Count > 0)
+            {
+                var objects = movedPaths
+                    .Select(p => AssetDatabase.LoadAssetAtPath<Object>(p))
+                    .Where(o => o != null)
+                    .ToArray();
+                if (objects.Length > 0)
+                {
+                    Selection.objects = objects;
+                    EditorGUIUtility.PingObject(objects[objects.Length - 1]);
+                }
+            }
+        }
+
+        public static void EnsureFolderExists(string folderPath)
+        {
+            if (string.IsNullOrEmpty(folderPath) || AssetDatabase.IsValidFolder(folderPath))
+                return;
+            var parent = Path.GetDirectoryName(folderPath).Replace("\\", "/");
+            EnsureFolderExists(parent);
+            AssetDatabase.CreateFolder(parent, Path.GetFileName(folderPath));
+        }
+
+        // Moves all contents of source into dest recursively, merging where dest already exists.
+        private static void MergeIntoFolder(string source, string dest, List<string> movedPaths)
+        {
+            string srcFull = Path.GetFullPath(Application.dataPath + source.Substring("Assets".Length));
+
+            foreach (var subdirFull in Directory.GetDirectories(srcFull))
+            {
+                string name = Path.GetFileName(subdirFull);
+                string srcSub = $"{source}/{name}";
+                string dstSub = $"{dest}/{name}";
+                if (AssetDatabase.IsValidFolder(dstSub))
+                    MergeIntoFolder(srcSub, dstSub, movedPaths);
+                else
+                {
+                    string err = AssetDatabase.MoveAsset(srcSub, dstSub);
+                    if (string.IsNullOrEmpty(err)) { Debug.Log($"[PackageSorter] Moved {srcSub} → {dstSub}"); movedPaths.Add(dstSub); }
+                    else Debug.LogError($"[PackageSorter] Failed to move {srcSub} → {dstSub}: {err}");
+                }
+            }
+
+            foreach (var fileFull in Directory.GetFiles(srcFull).Where(f => !f.EndsWith(".meta")))
+            {
+                string name = Path.GetFileName(fileFull);
+                string srcFile = $"{source}/{name}";
+                string dstFile = $"{dest}/{name}";
+                string err = AssetDatabase.MoveAsset(srcFile, dstFile);
+                if (string.IsNullOrEmpty(err)) { Debug.Log($"[PackageSorter] Moved {srcFile} → {dstFile}"); movedPaths.Add(dstFile); }
+                else Debug.LogError($"[PackageSorter] Failed to move {srcFile} → {dstFile}: {err}");
+            }
+
+            // Remove source folder if now empty (no non-meta entries)
+            if (!Directory.GetFileSystemEntries(srcFull).Where(e => !e.EndsWith(".meta")).Any())
+                AssetDatabase.DeleteAsset(source);
         }
     }
 
     public class PackageSorterWindow : EditorWindow
     {
         private string packageName;
+        private string[] rootItems;
         private string selectedCategory;
         private string customFolderInput;
-
-        private string[] importedAssets;
-
         private Vector2 scrollPos;
 
-        // Colors and styles
         private GUIStyle headerStyle;
-        private GUIStyle assetStyle;
+        private GUIStyle itemStyle;
         private GUIStyle buttonStyle;
 
         private void OnEnable()
         {
-            // Load the last selected category and previously entered custom folder (if any)
             selectedCategory = PackageSorterToggle.GetLastSelectedCategory();
-            customFolderInput = PackageSorterToggle.GetCustomFolder(); // NEW
+            customFolderInput = PackageSorterToggle.GetCustomFolder();
         }
 
         private void OnDestroy()
         {
-            // Save the category and custom folder when the window is closed
             PackageSorterToggle.SetLastSelectedCategory(selectedCategory);
-            PackageSorterToggle.SetCustomFolder(customFolderInput); // NEW
+            PackageSorterToggle.SetCustomFolder(customFolderInput);
         }
 
         private void EnsureStyles()
         {
             if (headerStyle == null)
-            {
                 headerStyle = new GUIStyle(EditorStyles.boldLabel) { fontSize = 14 };
-            }
-            if (assetStyle == null)
-            {
-                assetStyle = new GUIStyle(EditorStyles.label) { wordWrap = true };
-            }
+            if (itemStyle == null)
+                itemStyle = new GUIStyle(EditorStyles.label) { wordWrap = true };
             if (buttonStyle == null)
-            {
                 buttonStyle = new GUIStyle(GUI.skin.button) { fontStyle = FontStyle.Bold };
-            }
         }
 
-        public void SetPackage(string name, string[] assets)
+        public void SetPackage(string name, string[] items)
         {
             packageName = Path.GetFileNameWithoutExtension(name);
-            importedAssets = assets;
+            rootItems = items;
         }
 
         void OnGUI()
         {
             if (string.IsNullOrEmpty(packageName))
             {
-                EditorGUILayout.LabelField("No package detected.", headerStyle);
+                EditorGUILayout.LabelField("No package detected.");
                 return;
             }
 
@@ -193,245 +393,56 @@ namespace raspichu.vrc_tools.editor
             EditorGUILayout.LabelField("Package Imported:", packageName, headerStyle);
             EditorGUILayout.Space();
 
-            // Target Folder popup
             var categories = PackageSorterCategories.Categories;
             int selectedIndex = System.Array.IndexOf(categories, selectedCategory);
             if (selectedIndex < 0)
                 selectedIndex = 0;
 
-            int newSelectedIndex = EditorGUILayout.Popup(
-                "Target Folder",
-                selectedIndex,
-                categories
-            );
-
-            if (newSelectedIndex != selectedIndex)
+            int newIndex = EditorGUILayout.Popup("Target Folder", selectedIndex, categories);
+            if (newIndex != selectedIndex)
             {
-                selectedCategory = categories[newSelectedIndex];
-                // Persist the selection immediately
+                selectedCategory = categories[newIndex];
                 PackageSorterToggle.SetLastSelectedCategory(selectedCategory);
             }
 
-            // If user chose the "Custom" option, show an editable input for the folder name.
             if (selectedCategory == "Custom")
-            {
                 customFolderInput = EditorGUILayout.TextField("Custom Folder", customFolderInput);
-            }
 
-            // Determine the folder marker: for normal categories we keep the __{Category}__ wrapper,
-            // for custom we use the raw customFolderInput (no __).
-            string selectedCategoryParsed =
+            EditorGUILayout.Space();
+
+            string categoryFolder =
                 selectedCategory == "Custom" ? customFolderInput : $"__{selectedCategory}__";
 
-            string finalRoute = GetCommonRoute() ?? packageName;
-            string previewPath = Path.Combine("Assets", selectedCategoryParsed, finalRoute);
-            EditorGUILayout.LabelField("Destination:", previewPath, EditorStyles.helpBox);
+            EditorGUILayout.LabelField("Items to move:", headerStyle);
+            scrollPos = EditorGUILayout.BeginScrollView(scrollPos, GUILayout.Height(150));
+            foreach (var item in rootItems)
+            {
+                string relativePath = item.Substring("Assets/".Length);
+                EditorGUILayout.LabelField(
+                    $"{item}  →  Assets/{categoryFolder}/{relativePath}",
+                    itemStyle
+                );
+            }
+            EditorGUILayout.EndScrollView();
 
             EditorGUILayout.Space();
 
-            // List of imported assets
-            if (importedAssets != null && importedAssets.Length > 0)
-            {
-                EditorGUILayout.LabelField("Assets to move:", headerStyle);
-                scrollPos = EditorGUILayout.BeginScrollView(scrollPos, GUILayout.Height(200));
-                foreach (var asset in importedAssets)
-                {
-                    EditorGUILayout.LabelField(asset, assetStyle);
-                }
-                EditorGUILayout.EndScrollView();
-            }
-            else
-            {
-                EditorGUILayout.LabelField("No assets detected.", assetStyle);
-            }
-
-            EditorGUILayout.Space();
-
-            // Buttons
             EditorGUILayout.BeginHorizontal();
             if (GUILayout.Button("Sort Assets", buttonStyle, GUILayout.Height(30)))
-            {
                 SortImportedAssets();
-            }
-
             if (GUILayout.Button("Cancel", buttonStyle, GUILayout.Height(30)))
-            {
                 CloseAndContinue();
-            }
             EditorGUILayout.EndHorizontal();
-        }
-
-        string GetCommonRoute()
-        {
-            if (importedAssets == null || importedAssets.Length == 0)
-            {
-                return null;
-            }
-
-            // We check if there is a common root folder
-            string commonRoot = null;
-
-            if (importedAssets.Length > 0)
-            {
-                // Split all paths into segments and store them
-                var splitPaths = importedAssets
-                    .Where(path => path.StartsWith("Assets/"))
-                    .Select(path => path.Substring("Assets/".Length).Split('/'))
-                    .ToList();
-
-                if (splitPaths.Count > 0)
-                {
-                    // Start with the first path segments as a baseline
-                    var firstSegments = splitPaths[0];
-                    int commonLength = firstSegments.Length;
-
-                    // Compare with each other path
-                    foreach (var segments in splitPaths)
-                    {
-                        int i = 0;
-                        // Compare each segment level
-                        while (
-                            i < commonLength
-                            && i < segments.Length
-                            && segments[i] == firstSegments[i]
-                        )
-                        {
-                            i++;
-                        }
-                        commonLength = i;
-                        if (commonLength == 0)
-                            break; // No common folder at all
-                    }
-
-                    if (commonLength > 0)
-                    {
-                        commonRoot = string.Join("/", firstSegments.Take(commonLength));
-                    }
-                }
-            }
-
-            return commonRoot;
-        }
-
-        void DeleteEmptyFolders(string folderPath)
-        {
-            if (string.IsNullOrEmpty(folderPath) || !AssetDatabase.IsValidFolder(folderPath))
-                return;
-
-            // 1. Recursive call: clean children first
-            string[] subFolders = AssetDatabase.GetSubFolders(folderPath);
-            foreach (var sub in subFolders)
-            {
-                DeleteEmptyFolders(sub);
-            }
-
-            // 2. Check if the folder is empty of assets
-            // We use System.IO to be 100% sure there are no files left
-            string absolutePath = Path.GetFullPath(folderPath);
-            if (Directory.Exists(absolutePath))
-            {
-                string[] entries = Directory.GetFileSystemEntries(absolutePath);
-
-                // If it's empty (0 entries), delete it through AssetDatabase
-                if (entries.Length == 0)
-                {
-                    AssetDatabase.DeleteAsset(folderPath);
-
-                    // Try to clean the parent as well
-                    string parent = Path.GetDirectoryName(folderPath).Replace("\\", "/");
-                    if (parent.StartsWith("Assets") && parent != "Assets")
-                    {
-                        DeleteEmptyFolders(parent);
-                    }
-                }
-            }
         }
 
         void SortImportedAssets()
         {
-            if (importedAssets == null || importedAssets.Length == 0)
-            {
+            if (rootItems == null || rootItems.Length == 0)
                 return;
-            }
 
-            // Determine finalRoute as before...
-            string commonRoute = GetCommonRoute();
-            string finalRoute = commonRoute ?? packageName;
-
-            // Decide parsed category/folder name
-            string selectedCategoryParsed =
+            string categoryFolder =
                 selectedCategory == "Custom" ? customFolderInput : $"__{selectedCategory}__";
-            string rootFolder = Path.Combine("Assets", selectedCategoryParsed, finalRoute)
-                .Replace("\\", "/");
-
-            // Ensure root folder exists
-            if (!AssetDatabase.IsValidFolder(rootFolder))
-            {
-                Directory.CreateDirectory(rootFolder);
-                AssetDatabase.Refresh();
-            }
-
-            // Create the new folder structure and move assets (unchanged logic, but uses selectedCategoryParsed)
-            foreach (var assetPath in importedAssets)
-            {
-                string sanitizedAssetPath = assetPath.Replace("\\", "/");
-
-                if (!sanitizedAssetPath.StartsWith("Assets/"))
-                    continue;
-
-                if (AssetDatabase.IsValidFolder(sanitizedAssetPath))
-                    continue;
-
-                string relativePath = sanitizedAssetPath.Substring("Assets/".Length);
-                if (relativePath == finalRoute)
-                {
-                    continue;
-                }
-
-                // Remove the commonRoot prefix if present
-                if (!string.IsNullOrEmpty(finalRoute) && relativePath.StartsWith(finalRoute + "/"))
-                {
-                    int firstSlash = relativePath.IndexOf('/');
-                    if (firstSlash >= 0)
-                        relativePath = relativePath.Substring(firstSlash + 1);
-                    else
-                        relativePath = ""; // Only root folder
-                }
-
-                string newPath = Path.Combine(
-                        "Assets",
-                        selectedCategoryParsed,
-                        finalRoute,
-                        relativePath
-                    )
-                    .Replace("\\", "/");
-
-                // Create necessary folders
-                string newFolder = Path.GetDirectoryName(newPath).Replace("\\", "/");
-                if (!AssetDatabase.IsValidFolder(newFolder))
-                {
-                    string[] folders = newFolder.Split('/');
-                    string current = folders[0];
-                    for (int i = 1; i < folders.Length; i++)
-                    {
-                        string next = current + "/" + folders[i];
-                        if (!AssetDatabase.IsValidFolder(next))
-                            AssetDatabase.CreateFolder(current, folders[i]);
-                        current = next;
-                    }
-                }
-
-                Debug.Log($"[PI] Moving {sanitizedAssetPath} to {newPath}");
-
-                AssetDatabase.MoveAsset(sanitizedAssetPath, newPath);
-            }
-            foreach (var assetPath in importedAssets)
-            {
-                string folderPath = Path.GetDirectoryName(assetPath).Replace("\\", "/");
-                DeleteEmptyFolders(folderPath);
-            }
-
-            AssetDatabase.Refresh();
+            AutoPackageSorter.PerformSort(rootItems, categoryFolder);
             CloseAndContinue();
         }
 
@@ -440,9 +451,7 @@ namespace raspichu.vrc_tools.editor
             packageName = null;
             AutoPackageSorter.ShowNextInQueue();
             if (string.IsNullOrEmpty(packageName))
-            {
                 Close();
-            }
         }
     }
 
@@ -450,7 +459,7 @@ namespace raspichu.vrc_tools.editor
     {
         private const string PrefKey = "Pichu_SortPackage_Enabled";
         private const string CategoryPrefKey = "Pichu_SortPackage_LastCategory";
-        private const string CustomFolderPrefKey = "Pichu_SortPackage_CustomFolder"; // new
+        private const string CustomFolderPrefKey = "Pichu_SortPackage_CustomFolder";
 
         [MenuItem("Tools/Pichu/Options/Enable Sort Imported Package")]
         private static void ToggleSortPackage()
@@ -462,7 +471,6 @@ namespace raspichu.vrc_tools.editor
         [MenuItem("Tools/Pichu/Options/Enable Sort Imported Package", true)]
         private static bool ToggleSortPackageValidate()
         {
-            // Always enable the menu
             Menu.SetChecked("Tools/Pichu/Options/Enable Sort Imported Package", IsEnabled());
             return true;
         }
@@ -480,25 +488,17 @@ namespace raspichu.vrc_tools.editor
         public static string GetLastSelectedCategory()
         {
             string lastCategory = EditorUserSettings.GetConfigValue(CategoryPrefKey);
-
             if (string.IsNullOrEmpty(lastCategory))
-            {
-                // Return the first category by default if nothing is saved
                 return PackageSorterCategories.Categories.First();
-            }
-
             return lastCategory;
         }
 
         public static void SetLastSelectedCategory(string category)
         {
             if (!string.IsNullOrEmpty(category))
-            {
                 EditorUserSettings.SetConfigValue(CategoryPrefKey, category);
-            }
         }
 
-        // Persist custom folder name for the "Custom" category
         public static string GetCustomFolder()
         {
             string custom = EditorUserSettings.GetConfigValue(CustomFolderPrefKey);
@@ -510,9 +510,7 @@ namespace raspichu.vrc_tools.editor
         public static void SetCustomFolder(string folder)
         {
             if (!string.IsNullOrEmpty(folder))
-            {
                 EditorUserSettings.SetConfigValue(CustomFolderPrefKey, folder);
-            }
         }
     }
 
