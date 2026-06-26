@@ -22,6 +22,7 @@ namespace raspichu.vrc_tools.editor
         private List<ImportItem> importQueue = new List<ImportItem>();
         private Vector2 scrollPos;
         private bool isProcessing = false;
+        private string bulkSortCategory = "None";
 
         private GUIStyle itemLabelStyle;
         private GUIStyle foldoutStyle;
@@ -76,10 +77,26 @@ namespace raspichu.vrc_tools.editor
             }
 
             EditorGUILayout.Space(10);
+            EditorGUILayout.BeginHorizontal();
             EditorGUILayout.LabelField(
                 $"Queue ({importQueue.Count} items)",
                 EditorStyles.boldLabel
             );
+            if (PackageSorterToggle.IsEnabled() && importQueue.Count > 0)
+            {
+                var sortOptions = new[] { "None" }.Concat(PackageSorterCategories.Categories).ToArray();
+                int bulkIdx = System.Array.IndexOf(sortOptions, bulkSortCategory);
+                if (bulkIdx < 0) bulkIdx = 0;
+                EditorGUILayout.LabelField("Set all:", GUILayout.Width(45));
+                int newBulkIdx = EditorGUILayout.Popup(bulkIdx, sortOptions, GUILayout.Width(90));
+                if (newBulkIdx != bulkIdx)
+                {
+                    bulkSortCategory = sortOptions[newBulkIdx];
+                    foreach (var item in importQueue)
+                        item.SortCategory = bulkSortCategory;
+                }
+            }
+            EditorGUILayout.EndHorizontal();
 
             scrollPos = EditorGUILayout.BeginScrollView(scrollPos);
             for (int i = 0; i < importQueue.Count; i++)
