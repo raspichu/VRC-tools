@@ -332,6 +332,7 @@ namespace raspichu.vrc_tools.editor
                     Debug.LogError($"[BatchImporter] ZIP Error: {e.Message}");
                 }
             }
+            newItem.SortCategory = bulkSortCategory;
             importQueue.Add(newItem);
         }
 
