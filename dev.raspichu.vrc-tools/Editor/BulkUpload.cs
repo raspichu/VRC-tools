@@ -105,9 +105,13 @@ namespace raspichu.vrc_tools.editor
         }
 
 
+        private const string SDKPanelLoadedKey = "Pichu_BulkUpload_SDKPanelLoaded";
+
         private void EnsureSDKPanelLoaded()
         {
             if (!IsBuilderPresent()) return;
+            if (SessionState.GetBool(SDKPanelLoadedKey, false)) return;
+            SessionState.SetBool(SDKPanelLoadedKey, true);
             // Builder is present but tab may not have initialized yet - force it to load and come back
             EditorApplication.ExecuteMenuItem("VRChat SDK/Show Control Panel");
             EditorApplication.delayCall += () => { Focus(); Repaint(); };
