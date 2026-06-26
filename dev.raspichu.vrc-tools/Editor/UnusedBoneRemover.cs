@@ -170,7 +170,7 @@ namespace raspichu.vrc_tools.editor
         private static void AddSkinMeshToHash(GameObject gameObject, HashSet<Transform> usedBones)
         {
             // Get all the SkinnedMeshRenderers in the copy
-            SkinnedMeshRenderer[] skinnedMeshRenderers = gameObject.GetComponentsInChildren<SkinnedMeshRenderer>();
+            SkinnedMeshRenderer[] skinnedMeshRenderers = gameObject.GetComponentsInChildren<SkinnedMeshRenderer>(true);
 
             // Iterate over all the SkinnedMeshRenderers to get the bones used by them
             foreach (SkinnedMeshRenderer skinnedMesh in skinnedMeshRenderers)

@@ -100,7 +100,17 @@ namespace raspichu.vrc_tools.editor
 
         private void OnEnable()
         {
-            ResetAvatarStatus(); // Initialize or reset avatar statuses
+            ResetAvatarStatus();
+            EditorApplication.delayCall += EnsureSDKPanelLoaded;
+        }
+
+
+        private void EnsureSDKPanelLoaded()
+        {
+            if (!IsBuilderPresent()) return;
+            // Builder is present but tab may not have initialized yet - force it to load and come back
+            EditorApplication.ExecuteMenuItem("VRChat SDK/Show Control Panel");
+            EditorApplication.delayCall += () => { Focus(); Repaint(); };
         }
 
         private async void OnGUI()
@@ -121,9 +131,13 @@ namespace raspichu.vrc_tools.editor
 
             if (!IsBuilderPresent())
             {
-                EditorGUILayout.Space(5); // Add spacing between avatars
+                EditorGUILayout.Space(5);
                 EditorGUILayout.HelpBox("Please open the VRChat SDK Control Panel.", MessageType.Error, true);
-                EditorGUILayout.Space(5); // Add spacing between avatars
+                if (GUILayout.Button("Open VRChat SDK Control Panel"))
+                {
+                    EditorApplication.ExecuteMenuItem("VRChat SDK/Show Control Panel");
+                }
+                EditorGUILayout.Space(5);
 
                 isBuilderPresent = false;
             }
@@ -132,8 +146,12 @@ namespace raspichu.vrc_tools.editor
                 isBuilderPresent = true;
             }
 
-            EditorGUI.BeginDisabledGroup(isAvatarUploading || !isBuilderPresent); // Disable group for Upload button
-            if (GUILayout.Button($"Upload All ({avatarsDescriptor.Length})", GUILayout.Height(40)))
+            int uploadableCount = avatarsDescriptor.Count(d => {
+                var pm = d.GetComponent<PipelineManager>();
+                return pm != null && !string.IsNullOrEmpty(pm.blueprintId);
+            });
+            EditorGUI.BeginDisabledGroup(isAvatarUploading || !isBuilderPresent || uploadableCount == 0); // Disable group for Upload button
+            if (GUILayout.Button($"Upload All ({uploadableCount})", GUILayout.Height(40)))
             {
                 UploadAllAvatars();
             }
@@ -162,18 +180,38 @@ namespace raspichu.vrc_tools.editor
 
                 EditorGUILayout.BeginHorizontal();
 
+                var pipeline = avatar.GetComponent<PipelineManager>();
+                bool hasId = pipeline != null && !string.IsNullOrEmpty(pipeline.blueprintId);
+
+                var zoomContent = EditorGUIUtility.IconContent("d_ViewToolZoom");
+                zoomContent.tooltip = "Select this avatar in the VRChat SDK Control Panel";
+                if (GUILayout.Button(zoomContent, GUILayout.Width(22), GUILayout.Height(20)))
+                {
+                    EditorApplication.ExecuteMenuItem("VRChat SDK/Show Control Panel");
+                    if (VRCSdkControlPanel.TryGetBuilder<IVRCSdkAvatarBuilderApi>(out var builder))
+                        builder.SelectAvatar(avatar.gameObject);
+                }
+
                 // Upload button on the right
-                EditorGUI.BeginDisabledGroup(isAvatarUploading || !isBuilderPresent); // Disable group for Upload button
+                EditorGUI.BeginDisabledGroup(isAvatarUploading || !isBuilderPresent || !hasId);
                 if (GUILayout.Button("Upload", GUILayout.Width(80)))
                 {
                     UploadSingleAvatar(avatar);
                 }
-                EditorGUI.EndDisabledGroup(); // End disable group for Upload button
+                EditorGUI.EndDisabledGroup();
 
-                DrawStatusText(avatar.gameObject.name);
+                if (!hasId)
+                {
+                    var warningContent = new GUIContent(EditorGUIUtility.IconContent("console.warnicon.sml"))
+                    {
+                        tooltip = "No blueprint ID assigned. Upload this avatar manually through the VRChat SDK first."
+                    };
+                    GUILayout.Label(warningContent, GUILayout.Width(20), GUILayout.Height(20));
+                }
+
+                DrawStatusText(avatar.gameObject.name, hasId);
 
                 GUILayout.FlexibleSpace();
-
 
                 EditorGUILayout.EndHorizontal();
                 EditorGUILayout.Space(5); // Add spacing between avatars
@@ -223,7 +261,7 @@ namespace raspichu.vrc_tools.editor
             }
         }
 
-        private void DrawStatusText(string avatarName)
+        private void DrawStatusText(string avatarName, bool hasId = true)
         {
             if (!avatarStatuses.ContainsKey(avatarName))
             {
@@ -237,8 +275,16 @@ namespace raspichu.vrc_tools.editor
             switch (status)
             {
                 case AvatarUploadStatus.Ready:
-                    GUI.contentColor = StatusColors[AvatarUploadStatus.Ready];
-                    GUILayout.Label($"[Ready] {avatarName}");
+                    if (!hasId)
+                    {
+                        GUI.contentColor = new Color(1f, 0.85f, 0f, 1f);
+                        GUILayout.Label(new GUIContent($"[Missing ID] {avatarName}", "No blueprint ID assigned. Upload this avatar manually through the VRChat SDK first."));
+                    }
+                    else
+                    {
+                        GUI.contentColor = StatusColors[AvatarUploadStatus.Ready];
+                        GUILayout.Label($"[Ready] {avatarName}");
+                    }
                     break;
                 case AvatarUploadStatus.Waiting:
                     GUI.contentColor = StatusColors[AvatarUploadStatus.Waiting];
@@ -328,7 +374,8 @@ namespace raspichu.vrc_tools.editor
 
         private bool IsBuilderPresent()
         {
-            return VRCSdkControlPanel.TryGetBuilder<IVRCSdkAvatarBuilderApi>(out var builder);
+            if (Resources.FindObjectsOfTypeAll<VRCSdkControlPanel>().Length == 0) return false;
+            return VRCSdkControlPanel.TryGetBuilder<IVRCSdkAvatarBuilderApi>(out _);
         }
 
        public static string AgreementText =
@@ -396,7 +443,12 @@ namespace raspichu.vrc_tools.editor
             statusPopup?.UpdateStatus("Starting bulk upload...", StatusColors[AvatarUploadStatus.Uploading]);
             
 
-            fixedAvatarsDescriptor = GetAvatarDescriptorList();
+            fixedAvatarsDescriptor = GetAvatarDescriptorList()
+                .Where(d => {
+                    var pm = d.GetComponent<PipelineManager>();
+                    return pm != null && !string.IsNullOrEmpty(pm.blueprintId);
+                })
+                .ToArray();
 
             isAvatarUploading = true;
             isAvatarUploadingAll = true;
