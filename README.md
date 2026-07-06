@@ -128,6 +128,16 @@ This tool allows you to import multiple `.unitypackage` files and ZIP archives a
    - If a ZIP file is added, the tool automatically scans it for internal packages. 
    - Use the foldout arrow to see the `.unitypackage` files inside and use the checkboxes to select only the ones you want to import.
 
+### UV Mesh Inspector
+
+This tool lets you visually match parts of a mesh to their corresponding area on a texture, useful for figuring out which UV island belongs to which part (e.g. a hair strand).
+
+1. Open the window via `Tools -> Pichu -> UV Mesh Inspector` (or right-click a GameObject).
+2. Drag a `SkinnedMeshRenderer`/`MeshRenderer` (or its GameObject) into **Target Renderer** and pick a **Material Slot**.
+3. Press **Pick In Scene**, then click on the mesh in the Scene view — or click directly on the texture preview — to mark the matching point and highlight its UV island.
+4. Use the scroll wheel to zoom and right-click drag to pan the preview.
+5. Press **Save UV as...** to export the current UV layout as a PNG.
+
 ## Installation
 1. **VCC Listing**
    - Go to [My VRChat Creator Companion listing](https://raspichu.github.io/vpm-listing/)
