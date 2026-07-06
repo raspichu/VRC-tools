@@ -31,7 +31,12 @@ jobs:
         run: |
           echo "zipFile=${{ env.packageName }}-${{ steps.version.outputs.prop }}".zip >> $GITHUB_ENV
           echo "unityPackage=${{ env.packageName }}-${{ steps.version.outputs.prop }}.unitypackage" >> $GITHUB_ENV
-        
+
+      - name: Add changelog URL to package.json
+        run: |
+          jq --arg url "https://github.com/${{ github.repository }}/releases/tag/${{ steps.version.outputs.prop }}" \
+             '. + {changelogUrl: $url}' "${{ env.packageName }}/package.json" > tmp.json && mv tmp.json "${{ env.packageName }}/package.json"
+
       - name: Create Zip
         uses: thedoctor0/zip-release@09336613be18a8208dfa66bd57efafd9e2685657
         with:
