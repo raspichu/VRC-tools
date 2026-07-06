@@ -63,17 +63,19 @@ namespace raspichu.vrc_tools.editor
 
         private const string ShowPopupKey = "Pichu_ShowUploadPopup";
 
-        // Property: Handles both loading and saving automatically
+        // Property: Handles both loading and saving automatically.
+        // Uses EditorUserSettings (per-project) rather than EditorPrefs (shared machine-wide
+        // across every Unity project) so this doesn't leak into other projects.
         private static bool ShowUploadPopup
         {
-            get => EditorPrefs.GetBool(ShowPopupKey, true);
-            set => EditorPrefs.SetBool(ShowPopupKey, value);
+            get => EditorUserSettings.GetConfigValue(ShowPopupKey) != "0";
+            set => EditorUserSettings.SetConfigValue(ShowPopupKey, value ? "1" : "0");
         }
 
         [MenuItem("Tools/Pichu/Options/Bulk Upload Popup")]
         private static void ToggleUploadPopup()
         {
-            // This single line both inverts the value and saves it to EditorPrefs
+            // This single line both inverts the value and saves it
             // because it triggers the 'set' block of the property above.
             ShowUploadPopup = !ShowUploadPopup;
             

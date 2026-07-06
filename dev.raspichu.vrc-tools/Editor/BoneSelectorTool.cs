@@ -57,32 +57,34 @@ namespace raspichu.vrc_tools.editor
         public static event System.Action StateChanged;
 
         // Master switch: when off, nothing from this tool runs or shows at all.
+        // Uses EditorUserSettings (per-project) rather than EditorPrefs (shared machine-wide
+        // across every Unity project) so enabling this here doesn't leak into other projects.
         public static bool MasterEnabled
         {
-            get => EditorPrefs.GetBool(MasterEnabledKey, false);
+            get => EditorUserSettings.GetConfigValue(MasterEnabledKey) == "1";
             set
             {
-                EditorPrefs.SetBool(MasterEnabledKey, value);
+                EditorUserSettings.SetConfigValue(MasterEnabledKey, value ? "1" : "0");
                 StateChanged?.Invoke();
             }
         }
 
         public static bool Enabled
         {
-            get => EditorPrefs.GetBool(EnabledKey, false);
+            get => EditorUserSettings.GetConfigValue(EnabledKey) == "1";
             set
             {
-                EditorPrefs.SetBool(EnabledKey, value);
+                EditorUserSettings.SetConfigValue(EnabledKey, value ? "1" : "0");
                 StateChanged?.Invoke();
             }
         }
 
         public static bool MirrorEnabled
         {
-            get => EditorPrefs.GetBool(MirrorKey, false);
+            get => EditorUserSettings.GetConfigValue(MirrorKey) == "1";
             set
             {
-                EditorPrefs.SetBool(MirrorKey, value);
+                EditorUserSettings.SetConfigValue(MirrorKey, value ? "1" : "0");
                 StateChanged?.Invoke();
             }
         }
