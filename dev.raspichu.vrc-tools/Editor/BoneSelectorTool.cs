@@ -92,17 +92,17 @@ namespace raspichu.vrc_tools.editor
             SceneView.duringSceneGui += OnSceneGUI;
         }
 
-        [MenuItem("Tools/Pichu/Options/Bone Tools")]
+        [MenuItem("Tools/Pichu/Options/Enable Bone Tools")]
         private static void ToggleMasterEnabled()
         {
             MasterEnabled = !MasterEnabled;
             SceneView.RepaintAll();
         }
 
-        [MenuItem("Tools/Pichu/Options/Bone Tools", true)]
+        [MenuItem("Tools/Pichu/Options/Enable Bone Tools", true)]
         private static bool ToggleMasterEnabledValidate()
         {
-            Menu.SetChecked("Tools/Pichu/Options/Bone Tools", MasterEnabled);
+            Menu.SetChecked("Tools/Pichu/Options/Enable Bone Tools", MasterEnabled);
             return true;
         }
 
