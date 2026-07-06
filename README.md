@@ -138,6 +138,18 @@ This tool lets you visually match parts of a mesh to their corresponding area on
 4. Use the scroll wheel to zoom and right-click drag to pan the preview.
 5. Press **Save UV as...** to export the current UV layout as a PNG.
 
+### Bone Tools (Bone Picker + Mirror)
+
+This tool overlays a skinned mesh's bones as clickable "sticks" in the Scene view, letting you select and inspect the rig without hunting through the Hierarchy, plus an optional mirror mode for editing symmetric bones together.
+
+*(Disabled by default, enable it via `Tools -> Pichu -> Options -> Bone Tools`)*
+
+1. Select a `SkinnedMeshRenderer` (or GameObject with one).
+2. Enable the overlay via `Tools -> Pichu -> Bone Tools -> Bone Picker`, or the "Bone Picker" toggle in the **Pichu Tools** panel docked in the Scene view.
+3. Click a bone stick to select it in the Hierarchy — Move/Rotate/Scale gizmos keep working normally alongside it.
+4. Only bones weighted to the mesh (plus their parent chain and chain-end tips) are shown; unweighted parent bones are grayed out.
+5. Enable `Tools -> Pichu -> Bone Tools -> Mirror Bone` to automatically apply the same rotation/position/scale change to the opposite-side bone (matched by `_L`/`_R`, `.L`/`.R`, `Left`/`Right`, etc. in the name), mirrored across the avatar root's left/right axis.
+
 ## Installation
 1. **VCC Listing**
    - Go to [My VRChat Creator Companion listing](https://raspichu.github.io/vpm-listing/)
