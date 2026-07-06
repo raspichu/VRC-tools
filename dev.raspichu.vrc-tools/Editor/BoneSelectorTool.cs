@@ -36,7 +36,10 @@ namespace raspichu.vrc_tools.editor
             ("LEFT", "RIGHT"),
         };
 
-        private static SkinnedMeshRenderer lastRenderer;
+        // Sticky: only updated when the selection includes at least one SkinnedMeshRenderer.
+        // Selecting anything else (a bone, the Armature root, empty space, ...) leaves this
+        // untouched, so the bone overlay only changes when you actually pick a different mesh.
+        private static List<SkinnedMeshRenderer> lastRenderers = new List<SkinnedMeshRenderer>();
 
         private static Transform trackedBone;
         private static Transform trackedMirrorBone;
@@ -57,32 +60,34 @@ namespace raspichu.vrc_tools.editor
         public static event System.Action StateChanged;
 
         // Master switch: when off, nothing from this tool runs or shows at all.
+        // Uses EditorUserSettings (per-project) rather than EditorPrefs (shared machine-wide
+        // across every Unity project) so enabling this here doesn't leak into other projects.
         public static bool MasterEnabled
         {
-            get => EditorPrefs.GetBool(MasterEnabledKey, false);
+            get => EditorUserSettings.GetConfigValue(MasterEnabledKey) == "1";
             set
             {
-                EditorPrefs.SetBool(MasterEnabledKey, value);
+                EditorUserSettings.SetConfigValue(MasterEnabledKey, value ? "1" : "0");
                 StateChanged?.Invoke();
             }
         }
 
         public static bool Enabled
         {
-            get => EditorPrefs.GetBool(EnabledKey, false);
+            get => EditorUserSettings.GetConfigValue(EnabledKey) == "1";
             set
             {
-                EditorPrefs.SetBool(EnabledKey, value);
+                EditorUserSettings.SetConfigValue(EnabledKey, value ? "1" : "0");
                 StateChanged?.Invoke();
             }
         }
 
         public static bool MirrorEnabled
         {
-            get => EditorPrefs.GetBool(MirrorKey, false);
+            get => EditorUserSettings.GetConfigValue(MirrorKey) == "1";
             set
             {
-                EditorPrefs.SetBool(MirrorKey, value);
+                EditorUserSettings.SetConfigValue(MirrorKey, value ? "1" : "0");
                 StateChanged?.Invoke();
             }
         }
@@ -154,27 +159,63 @@ namespace raspichu.vrc_tools.editor
             if (!Enabled)
                 return;
 
-            SkinnedMeshRenderer renderer = GetTargetRenderer();
-            if (renderer == null)
+            List<SkinnedMeshRenderer> renderers = GetTargetRenderers();
+            if (renderers == null || renderers.Count == 0)
                 return;
 
-            Transform[] rendererBones = renderer.bones;
-            if (rendererBones == null || rendererBones.Length == 0)
+            // Aggregated across every selected mesh, so multiple meshes can be inspected at once.
+            var boneSet = new HashSet<Transform>();
+            var weightedBones = new HashSet<Transform>();
+            var visibleBones = new HashSet<Transform>();
+            // Bones belonging to a renderer whose weights couldn't be read - treated like they
+            // have weight (not grayed out) since we simply don't know either way.
+            var unknownWeightBones = new HashSet<Transform>();
+
+            foreach (SkinnedMeshRenderer renderer in renderers)
+            {
+                if (renderer == null)
+                    continue;
+
+                Transform[] rendererBones = renderer.bones;
+                if (rendererBones == null || rendererBones.Length == 0)
+                    continue;
+
+                // Includes leaf transforms (e.g. "_end" tip markers) that Unity leaves out of
+                // SkinnedMeshRenderer.bones because they carry no weight themselves.
+                Transform[] extendedBones = GetExtendedBones(renderer, rendererBones);
+                var rendererBoneSet = new HashSet<Transform>(extendedBones);
+
+                HashSet<Transform> rendererWeightedBones = GetWeightedBones(
+                    renderer,
+                    rendererBones,
+                    out bool weightsKnown
+                );
+
+                // Fixed for as long as the same mesh stays selected - clicking between its bones
+                // does not narrow the view any further.
+                HashSet<Transform> rendererVisibleBones = GetVisibleBones(
+                    renderer,
+                    rendererBoneSet,
+                    rendererWeightedBones,
+                    weightsKnown
+                );
+
+                boneSet.UnionWith(rendererBoneSet);
+                weightedBones.UnionWith(rendererWeightedBones);
+                visibleBones.UnionWith(rendererVisibleBones);
+
+                if (!weightsKnown)
+                    unknownWeightBones.UnionWith(rendererBoneSet);
+            }
+
+            if (boneSet.Count == 0)
                 return;
-
-            // Includes leaf transforms (e.g. "_end" tip markers) that Unity leaves out of
-            // SkinnedMeshRenderer.bones because they carry no weight themselves.
-            Transform[] bones = GetExtendedBones(renderer, rendererBones);
-            var boneSet = new HashSet<Transform>(bones);
-
-            HashSet<Transform> weightedBones = GetWeightedBones(renderer, rendererBones, out bool weightsKnown);
-
-            // Fixed for as long as the same mesh stays selected - clicking between its bones
-            // does not narrow the view any further.
-            HashSet<Transform> visibleBones = GetVisibleBones(renderer, boneSet, weightedBones, weightsKnown);
 
             if (MirrorEnabled && trackedMirrorBone != null && boneSet.Contains(trackedMirrorBone))
                 AddAncestorChain(trackedMirrorBone, boneSet, visibleBones);
+
+            Transform[] bones = new Transform[boneSet.Count];
+            boneSet.CopyTo(bones);
 
             Event e = Event.current;
 
@@ -206,7 +247,7 @@ namespace raspichu.vrc_tools.editor
                 {
                     bool isSelected = Selection.activeTransform == bone;
                     bool isMirrorTarget = MirrorEnabled && bone == trackedMirrorBone;
-                    bool hasWeight = !weightsKnown || weightedBones.Contains(bone);
+                    bool hasWeight = unknownWeightBones.Contains(bone) || weightedBones.Contains(bone);
 
                     Handles.color = isSelected
                         ? Color.yellow
@@ -416,40 +457,41 @@ namespace raspichu.vrc_tools.editor
         }
 #endif
 
-        private static SkinnedMeshRenderer GetTargetRenderer()
+        // Only updates lastRenderers when the current selection actually contains at least one
+        // SkinnedMeshRenderer (supports multi-selecting several meshes at once). Selecting a bone,
+        // the Armature root, empty space, or anything else without one of those leaves the
+        // previously shown mesh set completely untouched.
+        private static List<SkinnedMeshRenderer> GetTargetRenderers()
         {
-            GameObject go = Selection.activeGameObject;
-            if (go == null)
-                return lastRenderer = null;
+            GameObject[] selected = Selection.gameObjects;
+            List<SkinnedMeshRenderer> meshesInSelection = null;
 
-            SkinnedMeshRenderer direct = go.GetComponent<SkinnedMeshRenderer>();
-            if (direct != null)
-                return lastRenderer = direct;
-
-            if (lastRenderer != null && lastRenderer.bones != null)
+            foreach (GameObject go in selected)
             {
-                // Check the extended list too, since leaf "tip" bones (e.g. "_end" markers) are
-                // not part of SkinnedMeshRenderer.bones itself but are still shown/selectable.
-                Transform[] extended = GetExtendedBones(lastRenderer, lastRenderer.bones);
-                if (System.Array.IndexOf(extended, go.transform) >= 0)
-                    return lastRenderer;
+                SkinnedMeshRenderer smr = go.GetComponent<SkinnedMeshRenderer>();
+                if (smr == null)
+                    continue;
+
+                meshesInSelection ??= new List<SkinnedMeshRenderer>();
+                meshesInSelection.Add(smr);
             }
 
-            return lastRenderer = null;
+            if (meshesInSelection != null)
+                lastRenderers = meshesInSelection;
+
+            return lastRenderers;
         }
 
         // Extends the renderer's own bone list with leaf transforms Unity leaves out because
         // they carry no weight (e.g. "_end" tip markers) - so chain tips can still be shown.
-        // Cached per renderer since it depends only on the mesh, not on any selection.
-        private static SkinnedMeshRenderer extendedBonesRenderer;
-        private static Transform[] extendedBonesCache;
+        // Cached per renderer (keyed by renderer, not a single slot) since several renderers can
+        // be processed within the same frame when multiple meshes are selected at once.
+        private static readonly Dictionary<SkinnedMeshRenderer, Transform[]> extendedBonesCache = new();
 
         private static Transform[] GetExtendedBones(SkinnedMeshRenderer renderer, Transform[] rendererBones)
         {
-            if (extendedBonesRenderer == renderer && extendedBonesCache != null)
-                return extendedBonesCache;
-
-            extendedBonesRenderer = renderer;
+            if (extendedBonesCache.TryGetValue(renderer, out Transform[] cached))
+                return cached;
 
             var boneSet = new HashSet<Transform>(rendererBones);
             var result = new List<Transform>(rendererBones);
@@ -470,8 +512,9 @@ namespace raspichu.vrc_tools.editor
                 }
             }
 
-            extendedBonesCache = result.ToArray();
-            return extendedBonesCache;
+            Transform[] extended = result.ToArray();
+            extendedBonesCache[renderer] = extended;
+            return extended;
         }
 
         private static bool HasNonTransformComponent(Transform t)
@@ -487,9 +530,9 @@ namespace raspichu.vrc_tools.editor
 
         // The visible set is fixed for as long as the same mesh is selected: every weighted
         // bone, its full ancestor chain (grayed out if unweighted), and any unweighted "tip"
-        // bone hanging off the end of an otherwise-relevant chain.
-        private static SkinnedMeshRenderer visibleBonesRenderer;
-        private static HashSet<Transform> visibleBonesCache;
+        // bone hanging off the end of an otherwise-relevant chain. Cached per renderer since
+        // several renderers can be processed within the same frame with multi-selection.
+        private static readonly Dictionary<SkinnedMeshRenderer, HashSet<Transform>> visibleBonesCache = new();
 
         private static HashSet<Transform> GetVisibleBones(
             SkinnedMeshRenderer renderer,
@@ -498,17 +541,15 @@ namespace raspichu.vrc_tools.editor
             bool weightsKnown
         )
         {
-            if (visibleBonesRenderer == renderer && visibleBonesCache != null)
-                return visibleBonesCache;
-
-            visibleBonesRenderer = renderer;
+            if (visibleBonesCache.TryGetValue(renderer, out HashSet<Transform> cached))
+                return cached;
 
             if (!weightsKnown)
             {
                 // Can't tell what's relevant without weight data - show everything rather than
                 // risk hiding bones the user actually needs.
-                visibleBonesCache = boneSet;
-                return visibleBonesCache;
+                visibleBonesCache[renderer] = boneSet;
+                return boneSet;
             }
 
             var visible = new HashSet<Transform>();
@@ -526,8 +567,8 @@ namespace raspichu.vrc_tools.editor
                     visible.Add(bone);
             }
 
-            visibleBonesCache = visible;
-            return visibleBonesCache;
+            visibleBonesCache[renderer] = visible;
+            return visible;
         }
 
         private static bool IsLeaf(Transform bone, HashSet<Transform> boneSet)
@@ -554,9 +595,8 @@ namespace raspichu.vrc_tools.editor
         // Bone weights (grays out purely structural/parent bones with no vertex weight)
         // ---------------------------------------------------------------
 
-        private static SkinnedMeshRenderer weightedBonesRenderer;
-        private static HashSet<Transform> weightedBonesCache;
-        private static bool weightedBonesKnown;
+        private static readonly Dictionary<SkinnedMeshRenderer, HashSet<Transform>> weightedBonesCache = new();
+        private static readonly Dictionary<SkinnedMeshRenderer, bool> weightedBonesKnownCache = new();
 
         private static HashSet<Transform> GetWeightedBones(
             SkinnedMeshRenderer renderer,
@@ -564,15 +604,14 @@ namespace raspichu.vrc_tools.editor
             out bool weightsKnown
         )
         {
-            if (weightedBonesRenderer == renderer && weightedBonesCache != null)
+            if (weightedBonesCache.TryGetValue(renderer, out HashSet<Transform> cached))
             {
-                weightsKnown = weightedBonesKnown;
-                return weightedBonesCache;
+                weightsKnown = weightedBonesKnownCache[renderer];
+                return cached;
             }
 
-            weightedBonesRenderer = renderer;
-            weightedBonesCache = new HashSet<Transform>();
-            weightedBonesKnown = false;
+            var weighted = new HashSet<Transform>();
+            bool known = false;
 
             Mesh mesh = renderer.sharedMesh;
             if (mesh != null && mesh.isReadable)
@@ -580,7 +619,7 @@ namespace raspichu.vrc_tools.editor
                 BoneWeight[] boneWeights = mesh.boneWeights;
                 if (boneWeights != null && boneWeights.Length > 0)
                 {
-                    weightedBonesKnown = true;
+                    known = true;
                     var weightedIndices = new HashSet<int>();
                     foreach (BoneWeight bw in boneWeights)
                     {
@@ -597,13 +636,15 @@ namespace raspichu.vrc_tools.editor
                     for (int i = 0; i < bones.Length; i++)
                     {
                         if (bones[i] != null && weightedIndices.Contains(i))
-                            weightedBonesCache.Add(bones[i]);
+                            weighted.Add(bones[i]);
                     }
                 }
             }
 
-            weightsKnown = weightedBonesKnown;
-            return weightedBonesCache;
+            weightedBonesCache[renderer] = weighted;
+            weightedBonesKnownCache[renderer] = known;
+            weightsKnown = known;
+            return weighted;
         }
     }
 
