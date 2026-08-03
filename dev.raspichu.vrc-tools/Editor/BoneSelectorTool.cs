@@ -41,18 +41,25 @@ namespace raspichu.vrc_tools.editor
         // untouched, so the bone overlay only changes when you actually pick a different mesh.
         private static List<SkinnedMeshRenderer> lastRenderers = new List<SkinnedMeshRenderer>();
 
-        private static Transform trackedBone;
-        private static Transform trackedMirrorBone;
-        private static Transform trackedRoot; // avatar root; its local X axis is assumed to be left/right
-        private static Quaternion trackedStartRotation; // source bone's rotation (root space) when tracking began
-        private static Quaternion trackedMirrorStartRotation; // mirror bone's rotation (root space) at that moment
-        private static Quaternion trackedLastRotation; // source bone's rotation (world space), to detect changes
-        private static Vector3 trackedStartScale;
-        private static Vector3 trackedMirrorStartScale;
-        private static Vector3 trackedLastScale;
-        private static Vector3 trackedStartPosition; // root space
-        private static Vector3 trackedMirrorStartPosition; // root space
-        private static Vector3 trackedLastPosition; // world space, to detect changes
+        // Per-bone live-mirror tracking state, so every selected bone (not just the single
+        // "active" one) gets its own mirror counterpart driven while it's selected.
+        private class MirrorTrackState
+        {
+            public Transform mirrorBone;
+            public Transform root; // avatar root; its local X axis is assumed to be left/right
+            public Quaternion startRotation; // source bone's rotation (root space) when tracking began
+            public Quaternion mirrorStartRotation; // mirror bone's rotation (root space) at that moment
+            public Quaternion lastRotation; // source bone's rotation (world space), to detect changes
+            public Vector3 startScale;
+            public Vector3 mirrorStartScale;
+            public Vector3 lastScale;
+            public Vector3 startPosition; // root space
+            public Vector3 mirrorStartPosition; // root space
+            public Vector3 lastPosition; // world space, to detect changes
+            public bool wasChanging; // was the bone still moving as of last frame?
+        }
+
+        private static readonly Dictionary<Transform, MirrorTrackState> trackedMirrorStates = new();
 
         // Raised whenever MasterEnabled/Enabled/MirrorEnabled change, from any source (menu
         // items, the overlay panel, the fallback floating buttons), so every UI surface can
@@ -211,13 +218,55 @@ namespace raspichu.vrc_tools.editor
             if (boneSet.Count == 0)
                 return;
 
-            if (MirrorEnabled && trackedMirrorBone != null && boneSet.Contains(trackedMirrorBone))
-                AddAncestorChain(trackedMirrorBone, boneSet, visibleBones);
+            // Mirror counterparts for every currently selected bone (not just the single one
+            // being live-mirrored), so multi-select shows all of them highlighted too.
+            HashSet<Transform> mirrorHighlightBones = MirrorEnabled ? GetMirrorHighlightBones(boneSet) : null;
+            if (mirrorHighlightBones != null)
+            {
+                foreach (Transform mirrorBone in mirrorHighlightBones)
+                    AddAncestorChain(mirrorBone, boneSet, visibleBones);
+            }
 
             Transform[] bones = new Transform[boneSet.Count];
             boneSet.CopyTo(bones);
 
             Event e = Event.current;
+
+            // Ctrl/Cmd+click is handled as a direct hit-test, bypassing the cooperative
+            // nearestControl arbitration below entirely - Unity reserves Ctrl for the active
+            // gizmo (e.g. snapping while dragging), which was swallowing the modifier before it
+            // ever reached our per-bone controls, so a plain click-to-select-multiple never fired.
+            if (e.type == EventType.MouseDown && e.button == 0 && !e.alt && (e.control || e.command))
+            {
+                Transform closest = null;
+                float closestDist = HoverPixelThreshold;
+                foreach (Transform bone in bones)
+                {
+                    if (bone == null || bone.parent == null || !boneSet.Contains(bone.parent))
+                        continue;
+                    if (!visibleBones.Contains(bone))
+                        continue;
+
+                    float dist = HandleUtility.DistanceToLine(bone.parent.position, bone.position);
+                    if (dist < closestDist)
+                    {
+                        closestDist = dist;
+                        closest = bone;
+                    }
+                }
+
+                if (closest != null)
+                {
+                    var selected = new List<Object>(Selection.objects);
+                    if (selected.Contains(closest.gameObject))
+                        selected.Remove(closest.gameObject);
+                    else
+                        selected.Add(closest.gameObject);
+                    Selection.objects = selected.ToArray();
+                    e.Use();
+                    return;
+                }
+            }
 
             // Registering each bone as a proper Handles "control" (instead of unconditionally
             // consuming MouseDown ourselves) lets Unity's own nearest-control system decide who
@@ -245,8 +294,10 @@ namespace raspichu.vrc_tools.editor
 
                 if (e.type == EventType.Repaint)
                 {
-                    bool isSelected = Selection.activeTransform == bone;
-                    bool isMirrorTarget = MirrorEnabled && bone == trackedMirrorBone;
+                    // Highlights every selected bone, not just the "active" one, so multi-select
+                    // (Ctrl+click) shows all of them as selected.
+                    bool isSelected = System.Array.IndexOf(Selection.gameObjects, bone.gameObject) >= 0;
+                    bool isMirrorTarget = mirrorHighlightBones != null && mirrorHighlightBones.Contains(bone);
                     bool hasWeight = unknownWeightBones.Contains(bone) || weightedBones.Contains(bone);
 
                     Handles.color = isSelected
@@ -266,6 +317,8 @@ namespace raspichu.vrc_tools.editor
                 }
                 else if (e.type == EventType.MouseDown && e.button == 0 && !e.alt && isNearestAndClose)
                 {
+                    // Ctrl/Cmd+click is already handled (and consumed) by the bypass above -
+                    // this only ever runs for a plain click now.
                     GUIUtility.hotControl = controlId;
                     Selection.activeGameObject = bone.gameObject;
                     e.Use();
@@ -283,88 +336,163 @@ namespace raspichu.vrc_tools.editor
         private static void HandleMirror()
         {
             if (!MirrorEnabled)
-                return;
-
-            Transform current = Selection.activeTransform;
-            if (current == null)
             {
-                trackedBone = null;
-                trackedMirrorBone = null;
+                trackedMirrorStates.Clear();
                 return;
             }
 
-            if (current != trackedBone)
+            Transform[] selected = Selection.transforms;
+            var selectedSet = new HashSet<Transform>(selected);
+
+            // Drop tracking for anything that's no longer selected.
+            if (trackedMirrorStates.Count > 0)
             {
-                trackedBone = current;
-                trackedMirrorBone = FindMirroredBone(current);
-                trackedRoot = current.root;
-                // Rotation is tracked in the avatar root's local space (not the bone's own local
-                // space), since the two sides' bones don't necessarily share mirrored local axes.
-                trackedStartRotation = WorldToRootSpace(trackedRoot, current.rotation);
-                trackedStartScale = current.localScale;
-                trackedMirrorStartRotation =
-                    trackedMirrorBone != null
-                        ? WorldToRootSpace(trackedRoot, trackedMirrorBone.rotation)
-                        : Quaternion.identity;
-                trackedMirrorStartScale =
-                    trackedMirrorBone != null ? trackedMirrorBone.localScale : Vector3.one;
-                trackedStartPosition = WorldToRootSpacePosition(trackedRoot, current.position);
-                trackedMirrorStartPosition =
-                    trackedMirrorBone != null
-                        ? WorldToRootSpacePosition(trackedRoot, trackedMirrorBone.position)
-                        : Vector3.zero;
-                trackedLastRotation = current.rotation;
-                trackedLastScale = current.localScale;
-                trackedLastPosition = current.position;
-                return;
+                var toRemove = new List<Transform>();
+                foreach (Transform tracked in trackedMirrorStates.Keys)
+                {
+                    if (!selectedSet.Contains(tracked))
+                        toRemove.Add(tracked);
+                }
+                foreach (Transform tracked in toRemove)
+                    trackedMirrorStates.Remove(tracked);
             }
 
-            if (trackedMirrorBone == null)
-                return;
-
-            if (current.rotation != trackedLastRotation)
+            // Start tracking any newly selected bone from its current pose, so only pose changes
+            // made WHILE selected get mirrored (not the pre-existing pose itself).
+            foreach (Transform current in selected)
             {
-                // Compute the rotation change in the avatar root's space, mirror it across the
-                // root's local X axis (assumed to be the character's left/right axis), and apply
-                // it on top of the mirror bone's own starting rotation.
-                Quaternion currentRootSpace = WorldToRootSpace(trackedRoot, current.rotation);
-                Quaternion delta = currentRootSpace * Quaternion.Inverse(trackedStartRotation);
-                Quaternion mirroredDelta = MirrorRotationAcrossX(delta);
-                Quaternion newMirrorRootSpace = mirroredDelta * trackedMirrorStartRotation;
+                if (trackedMirrorStates.ContainsKey(current))
+                    continue;
 
-                Undo.RecordObject(trackedMirrorBone, "Mirror Bone Rotation");
-                trackedMirrorBone.rotation = trackedRoot.rotation * newMirrorRootSpace;
-                trackedLastRotation = current.rotation;
+                var state = new MirrorTrackState();
+                RebaselineMirrorTrackState(current, state, FindMirroredBone(current));
+                trackedMirrorStates[current] = state;
             }
 
-            if (current.position != trackedLastPosition)
+            // Apply mirrored deltas for every tracked bone whose pose changed since last frame.
+            foreach (KeyValuePair<Transform, MirrorTrackState> entry in trackedMirrorStates)
             {
-                // Positions are ordinary (polar) vectors, so mirroring them across the root's
-                // local X plane is a plain reflection: negate X, keep Y and Z.
-                Vector3 currentRootSpace = WorldToRootSpacePosition(trackedRoot, current.position);
-                Vector3 delta = currentRootSpace - trackedStartPosition;
-                Vector3 mirroredDelta = new Vector3(-delta.x, delta.y, delta.z);
-                Vector3 newMirrorRootSpace = trackedMirrorStartPosition + mirroredDelta;
+                Transform current = entry.Key;
+                MirrorTrackState state = entry.Value;
+                if (current == null)
+                    continue;
 
-                Undo.RecordObject(trackedMirrorBone, "Mirror Bone Position");
-                trackedMirrorBone.position =
-                    trackedRoot.position + trackedRoot.rotation * newMirrorRootSpace;
-                trackedLastPosition = current.position;
+                bool isChanging =
+                    current.rotation != state.lastRotation
+                    || current.position != state.lastPosition
+                    || current.localScale != state.lastScale;
+
+                // A bone kept selected through a rename (of itself or its counterpart) can change
+                // which mirror target its name resolves to without ever being deselected, so the
+                // cached mirrorBone would otherwise go stale until a fresh reselect re-ran
+                // FindMirroredBone. Re-resolve only once, right as a move starts (the bone was
+                // stationary last frame and just began changing) - not on every idle tick, and not
+                // on every single frame of an ongoing drag.
+                if (isChanging && !state.wasChanging)
+                {
+                    Transform freshMirrorBone = FindMirroredBone(current);
+                    if (freshMirrorBone != state.mirrorBone)
+                    {
+                        RebaselineMirrorTrackState(current, state, freshMirrorBone);
+                        state.wasChanging = true;
+                        continue; // re-baselined this frame; mirror starting next frame
+                    }
+                }
+                state.wasChanging = isChanging;
+
+                if (state.mirrorBone == null)
+                    continue;
+
+                if (current.rotation != state.lastRotation)
+                {
+                    // Compute the rotation change in the avatar root's space, mirror it across
+                    // the root's local X axis (assumed to be the character's left/right axis),
+                    // and apply it on top of the mirror bone's own starting rotation.
+                    Quaternion currentRootSpace = WorldToRootSpace(state.root, current.rotation);
+                    Quaternion delta = currentRootSpace * Quaternion.Inverse(state.startRotation);
+                    Quaternion mirroredDelta = MirrorRotationAcrossX(delta);
+                    Quaternion newMirrorRootSpace = mirroredDelta * state.mirrorStartRotation;
+
+                    Undo.RecordObject(state.mirrorBone, "Mirror Bone Rotation");
+                    state.mirrorBone.rotation = state.root.rotation * newMirrorRootSpace;
+                    state.lastRotation = current.rotation;
+                    SyncMirrorPartnerLastValues(state.mirrorBone);
+                }
+
+                if (current.position != state.lastPosition)
+                {
+                    // Positions are ordinary (polar) vectors, so mirroring them across the root's
+                    // local X plane is a plain reflection: negate X, keep Y and Z.
+                    Vector3 currentRootSpace = WorldToRootSpacePosition(state.root, current.position);
+                    Vector3 delta = currentRootSpace - state.startPosition;
+                    Vector3 mirroredDelta = new Vector3(-delta.x, delta.y, delta.z);
+                    Vector3 newMirrorRootSpace = state.mirrorStartPosition + mirroredDelta;
+
+                    Undo.RecordObject(state.mirrorBone, "Mirror Bone Position");
+                    state.mirrorBone.position =
+                        state.root.position + state.root.rotation * newMirrorRootSpace;
+                    state.lastPosition = current.position;
+                    SyncMirrorPartnerLastValues(state.mirrorBone);
+                }
+
+                if (current.localScale != state.lastScale)
+                {
+                    Vector3 s = current.localScale;
+                    Vector3 start = state.startScale;
+                    Vector3 scaleDelta = new Vector3(
+                        start.x != 0f ? s.x / start.x : 1f,
+                        start.y != 0f ? s.y / start.y : 1f,
+                        start.z != 0f ? s.z / start.z : 1f
+                    );
+
+                    Undo.RecordObject(state.mirrorBone, "Mirror Bone Scale");
+                    state.mirrorBone.localScale = Vector3.Scale(state.mirrorStartScale, scaleDelta);
+                    state.lastScale = current.localScale;
+                    SyncMirrorPartnerLastValues(state.mirrorBone);
+                }
             }
+        }
 
-            if (current.localScale != trackedLastScale)
+        // Re-points a tracked bone's mirror target and re-baselines all the start/last pose
+        // values around the CURRENT pose of both bones - the same thing that happens when a bone
+        // is first selected, just triggered by the mirror target changing underneath an already-
+        // tracked bone instead of by a fresh selection.
+        private static void RebaselineMirrorTrackState(
+            Transform current,
+            MirrorTrackState state,
+            Transform newMirrorBone
+        )
+        {
+            state.mirrorBone = newMirrorBone;
+            state.root = current.root;
+            state.startRotation = WorldToRootSpace(state.root, current.rotation);
+            state.startScale = current.localScale;
+            state.mirrorStartRotation =
+                newMirrorBone != null
+                    ? WorldToRootSpace(state.root, newMirrorBone.rotation)
+                    : Quaternion.identity;
+            state.mirrorStartScale = newMirrorBone != null ? newMirrorBone.localScale : Vector3.one;
+            state.startPosition = WorldToRootSpacePosition(state.root, current.position);
+            state.mirrorStartPosition =
+                newMirrorBone != null
+                    ? WorldToRootSpacePosition(state.root, newMirrorBone.position)
+                    : Vector3.zero;
+            state.lastRotation = current.rotation;
+            state.lastScale = current.localScale;
+            state.lastPosition = current.position;
+        }
+
+        // If the bone we just wrote a mirrored pose into is ALSO independently selected/tracked
+        // (e.g. both sides of a symmetric pair are selected at once), stamp its own "last" values
+        // so it isn't mistaken for a fresh user-driven edit and mirrored right back, which would
+        // fight the write that just happened.
+        private static void SyncMirrorPartnerLastValues(Transform mirrorBone)
+        {
+            if (trackedMirrorStates.TryGetValue(mirrorBone, out MirrorTrackState partnerState))
             {
-                Vector3 s = current.localScale;
-                Vector3 start = trackedStartScale;
-                Vector3 scaleDelta = new Vector3(
-                    start.x != 0f ? s.x / start.x : 1f,
-                    start.y != 0f ? s.y / start.y : 1f,
-                    start.z != 0f ? s.z / start.z : 1f
-                );
-
-                Undo.RecordObject(trackedMirrorBone, "Mirror Bone Scale");
-                trackedMirrorBone.localScale = Vector3.Scale(trackedMirrorStartScale, scaleDelta);
-                trackedLastScale = current.localScale;
+                partnerState.lastRotation = mirrorBone.rotation;
+                partnerState.lastPosition = mirrorBone.position;
+                partnerState.lastScale = mirrorBone.localScale;
             }
         }
 
@@ -421,6 +549,24 @@ namespace raspichu.vrc_tools.editor
                 if (ri >= 0)
                     return name.Substring(0, ri) + left + name.Substring(ri + right.Length);
             }
+
+            // Fallback: a bare trailing "L"/"R" with no separator (e.g. "handL"/"handR"), as long
+            // as the character right before it isn't itself uppercase - that guards against
+            // all-caps names/abbreviations ending in L or R (e.g. "HAIR", "FLOOR") being treated
+            // as mirror suffixes.
+            if (name.Length > 0)
+            {
+                char lastChar = name[name.Length - 1];
+                if (
+                    (lastChar == 'L' || lastChar == 'R')
+                    && (name.Length == 1 || !char.IsUpper(name[name.Length - 2]))
+                )
+                {
+                    char mirroredChar = lastChar == 'L' ? 'R' : 'L';
+                    return name.Substring(0, name.Length - 1) + mirroredChar;
+                }
+            }
+
             return name;
         }
 
@@ -589,6 +735,24 @@ namespace raspichu.vrc_tools.editor
                 visible.Add(cur);
                 cur = cur.parent;
             }
+        }
+
+        // Mirror counterparts for every currently selected bone, so the orange mirror highlight
+        // shows up for all of them when multiple bones are selected at once (not just the single
+        // bone HandleMirror() is actively live-mirroring).
+        private static HashSet<Transform> GetMirrorHighlightBones(HashSet<Transform> boneSet)
+        {
+            var result = new HashSet<Transform>();
+            foreach (GameObject go in Selection.gameObjects)
+            {
+                Transform selected = go.transform;
+                if (!boneSet.Contains(selected))
+                    continue;
+                Transform mirrored = FindMirroredBone(selected);
+                if (mirrored != null && boneSet.Contains(mirrored))
+                    result.Add(mirrored);
+            }
+            return result;
         }
 
         // ---------------------------------------------------------------

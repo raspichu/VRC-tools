@@ -136,6 +136,14 @@ namespace raspichu.vrc_tools.editor
                 return;
             }
 
+            // Force everything from the previous package (GUIDs included) to fully settle before
+            // chaining into the next import - back-to-back ImportPackage calls within the same
+            // callback may otherwise start before the asset database has fully committed the
+            // previous package, causing cross-package references (e.g. clothing -> material) to
+            // resolve as empty and get baked that way permanently.
+            AssetDatabase.SaveAssets();
+            AssetDatabase.Refresh();
+
             var (path, folder) = pendingBatch.Dequeue();
             currentBatchSnapshot = TakeFolderSnapshot();
             currentBatchFolder = folder;
