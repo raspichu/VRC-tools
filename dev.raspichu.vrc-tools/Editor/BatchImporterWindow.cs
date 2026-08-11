@@ -17,6 +17,7 @@ namespace raspichu.vrc_tools.editor
             public bool IsExpanded = true;
             public string SortCategory = "None";
             public string SortCustomFolder = "CustomFolder";
+            public string BoothUrl = "";
         }
 
         private List<ImportItem> importQueue = new List<ImportItem>();
@@ -271,6 +272,14 @@ namespace raspichu.vrc_tools.editor
                 }
             }
 
+            if (BoothFolderIconsBridge.IsAvailable)
+            {
+                EditorGUILayout.BeginHorizontal();
+                GUILayout.Space(item.IsZip ? 20 : 4);
+                item.BoothUrl = EditorGUILayout.TextField("Booth URL:", item.BoothUrl);
+                EditorGUILayout.EndHorizontal();
+            }
+
             EditorGUILayout.EndVertical();
         }
 
@@ -368,7 +377,7 @@ namespace raspichu.vrc_tools.editor
 
             try
             {
-                var batchItems = new List<(string path, string folder)>();
+                var batchItems = new List<(string path, string folder, string boothUrl)>();
 
                 foreach (var item in importQueue)
                 {
@@ -390,14 +399,14 @@ namespace raspichu.vrc_tools.editor
                                 {
                                     string dest = Path.Combine(tempPath, entry.Name);
                                     entry.ExtractToFile(dest, true);
-                                    batchItems.Add((dest, resolvedFolder));
+                                    batchItems.Add((dest, resolvedFolder, item.BoothUrl));
                                 }
                             }
                         }
                     }
                     else
                     {
-                        batchItems.Add((item.SourcePath, resolvedFolder));
+                        batchItems.Add((item.SourcePath, resolvedFolder, item.BoothUrl));
                     }
                 }
 

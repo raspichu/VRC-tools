@@ -17,9 +17,10 @@ namespace raspichu.vrc_tools.editor
 
         // Sequential batch state. ProcessNextBatch fires each import one at a time;
         // importPackageCompleted drives the next one, preventing shared-state interleaving.
-        private static readonly Queue<(string path, string folder)> pendingBatch =
-            new Queue<(string, string)>();
+        private static readonly Queue<(string path, string folder, string boothUrl)> pendingBatch =
+            new Queue<(string, string, string)>();
         private static string currentBatchFolder;
+        private static string currentBatchBoothUrl;
         private static HashSet<string> currentBatchSnapshot;
         private static bool isBatchActive;
 
@@ -65,16 +66,25 @@ namespace raspichu.vrc_tools.editor
             {
                 var snapshot = currentBatchSnapshot;
                 var folder = currentBatchFolder;
+                var boothUrl = currentBatchBoothUrl;
                 currentBatchSnapshot = null;
                 currentBatchFolder = null;
+                currentBatchBoothUrl = null;
                 accumulatedAssets.Clear();
 
-                if (PackageSorterToggle.IsEnabled() && folder != null)
+                bool wantsSort = PackageSorterToggle.IsEnabled() && folder != null;
+                bool wantsBooth = !string.IsNullOrEmpty(boothUrl);
+
+                if (wantsSort || wantsBooth)
                 {
                     var newItems = FindNewRootItemsFromSnapshot(snapshot);
-                    Debug.Log($"[PackageSorter] Batch '{packageName}' → folder='{folder}' | newRoots=[{string.Join(", ", newItems)}]");
-                    if (newItems.Length > 0 && !newItems.All(IsInsideCategory))
+                    Debug.Log($"[PackageSorter] Batch '{packageName}' → folder='{folder ?? "None"}' | newRoots=[{string.Join(", ", newItems)}]");
+
+                    if (wantsSort && newItems.Length > 0 && !newItems.All(IsInsideCategory))
                         PerformSort(newItems, folder);
+
+                    if (wantsBooth)
+                        BoothFolderIconsBridge.RunOnImportedItems(newItems, folder, boothUrl);
                 }
                 else
                 {
@@ -118,7 +128,7 @@ namespace raspichu.vrc_tools.editor
                 ShowNextInQueue();
         }
 
-        public static void StartBatch(IEnumerable<(string path, string folder)> items)
+        public static void StartBatch(IEnumerable<(string path, string folder, string boothUrl)> items)
         {
             foreach (var item in items)
                 pendingBatch.Enqueue(item);
@@ -144,9 +154,10 @@ namespace raspichu.vrc_tools.editor
             AssetDatabase.SaveAssets();
             AssetDatabase.Refresh();
 
-            var (path, folder) = pendingBatch.Dequeue();
+            var (path, folder, boothUrl) = pendingBatch.Dequeue();
             currentBatchSnapshot = TakeFolderSnapshot();
             currentBatchFolder = folder;
+            currentBatchBoothUrl = boothUrl;
             isBatchActive = true;
             Debug.Log($"[PackageSorter] ProcessNextBatch: importing '{Path.GetFileName(path)}' → folder='{folder ?? "None"}'");
             AssetDatabase.ImportPackage(path, false);
@@ -261,6 +272,13 @@ namespace raspichu.vrc_tools.editor
                     continue;
                 }
 
+                // Item is already the category folder itself or already sits inside it - e.g. a
+                // custom folder name that happens to match the imported product's own top folder
+                // name, or a re-import that merged straight into the existing category folder.
+                // Prefixing destRoot again here would nest it inside itself (Assets/test/test).
+                if (item == destRoot || item.StartsWith(destRoot + "/"))
+                    continue;
+
                 string relativePath = item.Substring("Assets/".Length);
                 string destPath = $"{destRoot}/{relativePath}";
 
@@ -354,6 +372,7 @@ namespace raspichu.vrc_tools.editor
         private string[] rootItems;
         private string selectedCategory;
         private string customFolderInput;
+        private string boothUrl = "";
         private Vector2 scrollPos;
 
         private GUIStyle headerStyle;
@@ -386,6 +405,7 @@ namespace raspichu.vrc_tools.editor
         {
             packageName = Path.GetFileNameWithoutExtension(name);
             rootItems = items;
+            boothUrl = ""; // each package needs its own URL, not the previous one's
         }
 
         void OnGUI()
@@ -418,6 +438,12 @@ namespace raspichu.vrc_tools.editor
 
             EditorGUILayout.Space();
 
+            if (BoothFolderIconsBridge.IsAvailable)
+            {
+                boothUrl = EditorGUILayout.TextField("Booth URL", boothUrl);
+                EditorGUILayout.Space();
+            }
+
             string categoryFolder =
                 selectedCategory == "Custom" ? customFolderInput : $"__{selectedCategory}__";
 
@@ -439,7 +465,7 @@ namespace raspichu.vrc_tools.editor
             if (GUILayout.Button("Sort Assets", buttonStyle, GUILayout.Height(30)))
                 SortImportedAssets();
             if (GUILayout.Button("Cancel", buttonStyle, GUILayout.Height(30)))
-                CloseAndContinue();
+                SkipSortAssets();
             EditorGUILayout.EndHorizontal();
         }
 
@@ -451,6 +477,13 @@ namespace raspichu.vrc_tools.editor
             string categoryFolder =
                 selectedCategory == "Custom" ? customFolderInput : $"__{selectedCategory}__";
             AutoPackageSorter.PerformSort(rootItems, categoryFolder);
+            BoothFolderIconsBridge.RunOnImportedItems(rootItems, categoryFolder, boothUrl);
+            CloseAndContinue();
+        }
+
+        void SkipSortAssets()
+        {
+            BoothFolderIconsBridge.RunOnImportedItems(rootItems, null, boothUrl);
             CloseAndContinue();
         }
 
