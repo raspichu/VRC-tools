@@ -389,7 +389,7 @@ namespace raspichu.vrc_tools.editor
                 e.Use();
                 Repaint();
             }
-            else if (e.type == EventType.MouseDrag && e.button == 1)
+            else if (e.type == EventType.MouseDrag && (e.button == 1 || e.button == 2))
             {
                 pan += e.delta;
                 e.Use();
