@@ -25,21 +25,40 @@ jobs:
       - name: get version
         id: version
         uses: notiz-dev/github-action-json-property@7c8cf5cc36eb85d8d287a8086a39dac59628eb31
-        with: 
+        with:
             path: "${{env.packageName}}/package.json"
             prop_path: "version"
-    
+
+      - name: Check if a release already exists for this version
+        id: check_release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          if gh release view "${{ steps.version.outputs.prop }}" --repo "${{ github.repository }}" >/dev/null 2>&1; then
+            echo "exists=true" >> $GITHUB_OUTPUT
+          else
+            echo "exists=false" >> $GITHUB_OUTPUT
+          fi
+
+      # A push to master without bumping package.json's version (e.g. a docs-only follow-up)
+      # would otherwise re-run this whole job against the SAME tag: the changelog step below
+      # diffs against "the nearest tag", which is now that same release, so it'd only show the
+      # one or two commits since then - and re-publishing would silently overwrite the real
+      # changelog that release already had. Skip everything else entirely in that case.
       - name: Set Environment Variables
+        if: steps.check_release.outputs.exists != 'true'
         run: |
           echo "zipFile=${{ env.packageName }}-${{ steps.version.outputs.prop }}".zip >> $GITHUB_ENV
           echo "unityPackage=${{ env.packageName }}-${{ steps.version.outputs.prop }}.unitypackage" >> $GITHUB_ENV
 
       - name: Add changelog URL to package.json
+        if: steps.check_release.outputs.exists != 'true'
         run: |
           jq --arg url "https://github.com/${{ github.repository }}/releases/tag/${{ steps.version.outputs.prop }}" \
              '. + {changelogUrl: $url}' "${{ env.packageName }}/package.json" > tmp.json && mv tmp.json "${{ env.packageName }}/package.json"
 
       - name: Generate changelog
+        if: steps.check_release.outputs.exists != 'true'
         run: |
           PREV_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "")
           FORMAT="- [[%h](https://github.com/${{ github.repository }}/commit/%H)]: %s"
@@ -54,22 +73,27 @@ jobs:
           echo "EOF" >> $GITHUB_ENV
 
       - name: Create Zip
+        if: steps.check_release.outputs.exists != 'true'
         uses: thedoctor0/zip-release@09336613be18a8208dfa66bd57efafd9e2685657
         with:
           type: "zip"
           directory: "${{env.packageName}}/"
           filename: "../${{env.zipFile}}" # make the zip file two directories up, since we start two directories in above
-          
-      - run: find "${{env.packageName}}/" -name \*.meta >> metaList
-          
+
+      - name: Collect meta files
+        if: steps.check_release.outputs.exists != 'true'
+        run: find "${{env.packageName}}/" -name \*.meta >> metaList
+
       - name: Create UnityPackage
+        if: steps.check_release.outputs.exists != 'true'
         uses: pCYSl5EDgo/create-unitypackage@cfcd3cf0391a5ef1306342794866a9897c32af0b
         with:
           package-path: ${{ env.unityPackage }}
           include-files: metaList
-        
-        
+
+
       - name: Make Release
+        if: steps.check_release.outputs.exists != 'true'
         uses: softprops/action-gh-release@1e07f4398721186383de40550babbdf2b84acfc5
         with:
           tag_name: ${{ steps.version.outputs.prop }}
@@ -80,6 +104,7 @@ jobs:
             ${{ env.packageName }}/package.json
 
       - name: Trigger vpm-listing rebuild
+        if: steps.check_release.outputs.exists != 'true'
         env:
           GH_TOKEN: ${{ secrets.VPM_LISTING_TOKEN }}
         run: gh workflow run build-listing.yml --repo raspichu/vpm-listing --ref main
