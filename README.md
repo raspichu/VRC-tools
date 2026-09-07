@@ -135,8 +135,21 @@ This tool lets you visually match parts of a mesh to their corresponding area on
 1. Open the window via `Tools -> Pichu -> UV Mesh Inspector` (or right-click a GameObject).
 2. Drag a `SkinnedMeshRenderer`/`MeshRenderer` (or its GameObject) into **Target Renderer** and pick a **Material Slot**.
 3. Press **Pick In Scene**, then click on the mesh in the Scene view — or click directly on the texture preview — to mark the matching point and highlight its UV island.
-4. Use the scroll wheel to zoom and right-click drag to pan the preview.
+4. Use the scroll wheel to zoom, and right-click or middle-click drag to pan the preview.
 5. Press **Save UV as...** to export the current UV layout as a PNG.
+
+### UV Editor
+
+A Blender-style UV editor: pick a mesh/material, edit its UVs directly on the texture with real-time feedback on the actual mesh, then save the result as a brand new mesh asset without ever touching the original.
+
+1. Open the window via `Tools -> Pichu -> UV Editor` (or right-click a `SkinnedMeshRenderer`/`MeshRenderer` and choose **Open UV Editor**).
+2. Drag a renderer into **Target Renderer** and pick a **Material Slot**.
+3. Click a point to select and drag it, Shift+click to add/remove, drag empty space to box-select, or press `L` to select the whole UV island under the cursor.
+4. With a selection, press `G` (move), `S` (scale) or `R` (rotate) — move the mouse to preview live, click/Enter to confirm, Esc to cancel. `X`/`Y` locks Move/Scale to that axis, and pressing another of G/S/R mid-transform switches to it directly.
+5. Scroll to zoom, right-click or middle-click drag to pan.
+6. While the window is open, the renderer's mesh is swapped for a live preview copy so edits show up in real time on the mesh itself (Scene view included); the original is restored automatically when you switch renderers or close the window.
+7. **Reset Selection** reverts only the selected points back to their original UVs. **Save Mesh As...** saves the edited layout into a new mesh asset, leaving the original mesh untouched.
+8. **Pick Point** drops a red marker on the mesh and texture instead of editing (same picker as UV Mesh Inspector) — toggle it off to go back to editing points.
 
 ### Bone Tools (Bone Picker + Mirror)
 
